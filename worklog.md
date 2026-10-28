@@ -443,3 +443,17 @@ Work Log:
 
 Stage Summary:
 - Deliverable: чистый репозиторий из одного коммита (84 файла), готовый к пушу. Порядок для пользователя: создать пустой repo на github.com → дать мне логин/имя репозитория/токен (classic, scope repo, после пуша отзывается) → scripts/push_github.sh; либо самому: git remote add origin https://github.com/USER/REPO.git && git push -u origin main (пароль = токен). GitHub Pages даст бесплатную ссылку на соло-версию (https://USER.github.io/REPO/wings_of_glory.html); мультиплееру требуется постоянный Node/Bun-хост (Render/Railway/Fly.io/VPS).
+
+---
+Task ID: 24
+Agent: main (Z.ai)
+Task: Пользователь создал пустой репозиторий github.com/Corsalet/Wings_of_Glory (public) — подключить и запушить.
+
+Work Log:
+- Проверка состояния: Task 22 (мультиплеер 5×5) и Task 23 (подготовка репо) завершены ранее; git main = 1 коммит (84 файла), рабочее дерево чистое; wog-server жив (socket.io handshake через Caddy :81 → :3030 OK, websocket upgrade доступен), dev.log чист; download/wings_of_glory.html = public/game.html (174 498 байт).
+- Подтверждение требований пользователя (перепроверка): playerLives=3 (личные), blueLives=15 (командный пул 5×3), 5×5 с бот-добором, лимит 10 человек — всё в коде, зафиксировано в Task 22.
+- git remote add origin https://github.com/Corsalet/Wings_of_Glory.git → попытка пуша: «fatal: could not read Username» — в окружении нет gh CLI, нет GITHUB_TOKEN, нет credential helper/.git-credentials → пуш требует Personal Access Token владельца аккаунта.
+- Пуш НЕ выполнен: ожидание токена (classic, scope repo) от пользователя; после получения — ./scripts/push_github.sh Corsalet Wings_of_Glory <token>; токен использовать однократно, пользователю предложено отозвать после пуша.
+
+Stage Summary:
+- remote origin подключён, коммит готов (84 файла); блокер единственный — учётные данные GitHub (PAT).
