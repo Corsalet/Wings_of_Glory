@@ -99,6 +99,24 @@ function fillBots() {
     while (n < TEAM_SIZE) { ents.push(makeBot(team)); n++; }
   }
 }
+// подбор по уровням: боты раскатываются по рангу старшего живого пилота.
+// Нужен потому, что resetRound() при первом join-е катит ботов ДО добавления человека (maxHumanTier()=3),
+// и Су-57 попадал в бой против бипланов. Только апгрейд: слабые ранги перекатываем вверх, сильных не понижаем.
+function refreshBotTiers() {
+  const T = maxHumanTier();
+  if (T <= 3) return;
+  let changed = false;
+  for (const e of ents) {
+    if (e.kind !== 'bot' || e.pst.tier >= T - 1) continue;
+    const pl = pickBotPlane(rollBotTier(T));
+    e.planeId = pl.id; e.pst = planeStatsBot(pl);
+    e.hpMax = e.pst.hp; e.hp = e.pst.hp;
+    e.mslAmmo = e.pst.msl; e.flares = e.pst.jet ? 3 : 0; e.cobraN = e.pst.prem ? 2 : 0;
+    io.emit('respawn', respawnDto(e));
+    changed = true;
+  }
+  if (changed) broadcastEnts();
+}
 function entDto(e: Ent) {
   return { id: e.id, kind: e.kind, team: e.team, name: e.name, planeId: e.planeId, alive: e.alive, hpMax: e.hpMax, lives: e.lives, kills: e.kills };
 }
@@ -539,6 +557,7 @@ function onConn(sock: Socket) {
     baseSpawn(ent);
     ents.push(ent);
     fillBots();
+    refreshBotTiers(); // прилетевший на технике выше ботов — поднять ботов под его ранг (подбор по уровням)
     (sock.data as any).entId = ent.id;
     if (!roundOver) { if (team === 'blue') blueLives += LIVES; else redLives += LIVES; }
     const msls = missiles.map(m => ({ id: m.id, sid: m.sid, tid: m.tid, team: m.team, pos: [m.pos.x, m.pos.y, m.pos.z], dir: [m.dir.x, m.dir.y, m.dir.z] }));

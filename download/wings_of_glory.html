@@ -1003,7 +1003,10 @@ const NET={
     if(!p) return;
     PROG.money=p.money|0; PROG.xp=p.xp|0;
     PROG.owned=(p.owned&&p.owned.length)?p.owned.slice():['po2'];
-    PROG.sel=p.sel||'po2';
+    if(!PROG.owned.includes('po2')) PROG.owned.push('po2');
+    // выбранный самолёт валидируем: неизвестный/некупленный id — откат на По-2 (иначе renderHangar падает на find(...).name)
+    const s=(p.sel&&PLANES.some(x=>x.id===p.sel)&&PROG.owned.includes(p.sel))?p.sel:'po2';
+    PROG.sel=s;
     PROG.upg={}; const su=p.upg||{};
     for(const pl of PLANES) PROG.upg[pl.id]={eng:(su[pl.id]&&su[pl.id].eng)||0,dur:(su[pl.id]&&su[pl.id].dur)||0,hdl:(su[pl.id]&&su[pl.id].hdl)||0,gun:(su[pl.id]&&su[pl.id].gun)||0};
     PROG.prem=!!p.prem;
@@ -2836,6 +2839,7 @@ function togglePause(){
 function returnToMenu(){
   state='menu';
   updateMenuWallet(); // после боя деньги/опыт изменились — обновить строку в меню
+  applyPlayerPlane(); setupTiers(); // пересобрать свой самолёт и состав рангов по актуальному PROG.sel (профиль мог обновиться roundEnd-ом)
   $('ov-pause').classList.add('hidden');
   $('ov-death').classList.add('hidden');
   $('ov-victory').classList.add('hidden');
@@ -2885,7 +2889,7 @@ function showDeath(){
 // ================= АНГАР =================
 function fmtMoney(n){ return n.toLocaleString('ru-RU')+' ₽'; }
 function updateMenuWallet(){
-  $('menu-wallet').textContent='В ангаре: '+PLANES.find(p=>p.id===PROG.sel).name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
+  $('menu-wallet').textContent='В ангаре: '+(PLANES.find(p=>p.id===PROG.sel)||PLANES[0]).name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
 }
 function updateWallet(){
   $('w-money').textContent=fmtMoney(PROG.money);
@@ -2913,7 +2917,7 @@ function renderHangar(){
   }
   $('hangar-list').innerHTML=html;
   // блок улучшений выбранного самолёта
-  const p=PLANES.find(x=>x.id===PROG.sel), u=PROG.upg[p.id];
+  const p=PLANES.find(x=>x.id===PROG.sel)||PLANES[0], u=PROG.upg[p.id]||{eng:0,dur:0,hdl:0,gun:0};
   let uh='<div class="upg-title">УЛУЧШЕНИЯ — '+p.name.toUpperCase()+' (опыт общий, '+PROG.xp+' доступно)</div>';
   for(const br of UPG_BRANCHES){
     const lvl=u[br.id], max=lvl>=5, cost=max?0:UPG_COST[lvl];
@@ -2950,7 +2954,7 @@ $('upg-box').addEventListener('click', e=>{
   if(lvl>=5||PROG.xp<UPG_COST[lvl]) return;
   if(NET.authed){ // улучшения сетевого профиля — через сервер
     NET.sock.emit('shop',{act:'upg',br},r=>{
-      if(r&&r.ok){ NET.applyProfile(r.profile); toast(UPG_BRANCHES.find(b=>b.id===br).name+': уровень '+r.profile.upg[PROG.sel][br]); }
+      if(r&&r.ok){ NET.applyProfile(r.profile); const lv=r.profile.upg[PROG.sel]; toast(UPG_BRANCHES.find(b=>b.id===br).name+': уровень '+(lv?lv[br]:0)); }
       else toast((r&&r.err)||'Отказ');
     });
     return;

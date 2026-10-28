@@ -1,6 +1,6 @@
 // Быстрая проверка: доходят ли снапшоты и жив ли тик
 import { io } from 'socket.io-client';
-const s = io('http://localhost:3030', { transports: ['websocket'] });
+const s = io(process.env.WOG_URL || 'http://localhost:3030', { transports: ['websocket'], path: '/wog/' });
 s.on('connect', async () => {
   console.log('connected');
   const j: any = await new Promise(r => s.emit('join', {}, r));

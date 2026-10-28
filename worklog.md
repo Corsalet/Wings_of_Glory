@@ -514,3 +514,20 @@ Stage Summary:
 - Фикс в game.ts join-обработчике: если в комнате нет живых людей — resetRound() перед добавлением игрока (первый пилот всегда начинает 15:15 с чистым небом; когда люди в бою — ничего не сбрасывается).
 - Новый test_fresh_join.ts: 40 с войны ботов (минимум счёта 9:12) → join → bl=15 rl=15 OK.
 - Регрессия: lives OK 15/15, smoke 16/16 (:3056). Воркспейс :3030 перезапущен (health+gateway 200).
+
+## Фикс: выбор самолёта сбрасывался на По-2 + подбор по уровням (TatNet)
+- Корень: dbcore.ts писал `sel` в SQLite через `JSON.stringify('su57')` → в БД попадало `"su57"` С кавычками;
+  при каждом чтении профиля `owned.includes('"su57"')` = false → sel молча откатывался на 'po2'.
+  Отсюда: (а) после боя ангар снова показывает По-2; (б) в сетевом бою игрок считается По-2 (ранг I),
+  и боты раскатываются бипланами — «сломался подбор по уровням».
+- dbcore.ts: saveField('sel', p.sel) — голый id (2 места); rowToProfile — лечение старых записей
+  (срезает кавычки) + валидация по PLANES и owned.
+- game.ts: refreshBotTiers() при join — боты ниже (T-1) ранга старшего пилота перекатываются вверх
+  (раньше resetRound катил ботов ДО добавления человека, Су-57 получал поршневых).
+- game.html: applyProfile валидирует p.sel (неизвестный/некупленный → po2); returnToMenu вызывает
+  applyPlayerPlane()+setupTiers() (модель в меню всегда по актуальному PROG.sel); фолбэки
+  `||PLANES[0]` в updateMenuWallet/renderHangar; безопасный доступ в toast улучшений.
+- Тесты (все bun, свежие серверы): test_sel OK (sel=su57 переживает перечитывание из БД),
+  test_bot_tiers OK (пилот su57 → боты рангов 10-11), test_smoke 16/16, test_fresh_join OK (15:15),
+  test_lives OK (INVARIANT 15/15), test_snap OK (фикс самого теста: path '/wog/' + WOG_URL).
+  Встроенный путь Next dev :3000: /api/wog {"ok":true}, socket.io-client CONNECTED.

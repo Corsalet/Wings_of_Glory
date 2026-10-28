@@ -100,7 +100,12 @@ function rowToProfile(r: any): Profile {
   try { owned = JSON.parse(r.owned); } catch { }
   try { upg = JSON.parse(r.upg); } catch { }
   if (!owned.includes('po2')) owned.push('po2');
-  if (!owned.includes(r.sel)) r.sel = 'po2';
+  // sel — голый id (НЕ JSON): старые записи содержали '"su57"' с кавычками (JSON.stringify от строки)
+  // и отваливались от проверки owned.includes → выбор молча сбрасывался на По-2 после каждого боя
+  let sel = String(r.sel || 'po2');
+  if (sel.length > 1 && sel.startsWith('"') && sel.endsWith('"')) sel = sel.slice(1, -1);
+  if (!PLANES.some(x => x.id === sel) || !owned.includes(sel)) sel = 'po2';
+  r.sel = sel;
   for (const pl of PLANES) if (!upg[pl.id]) upg[pl.id] = { eng: 0, dur: 0, hdl: 0, gun: 0 };
   return { nick: r.nick, money: r.money, xp: r.xp, owned, sel: r.sel, upg, prem: !!r.prem, kills: r.kills, deaths: r.deaths, wins: r.wins, rounds: r.rounds };
 }
@@ -170,14 +175,14 @@ export function shop(p: Profile, nick_l: string, body: any): { ok: boolean; err?
     if (p.money < pl.cost) return { ok: false, err: 'Не хватает денег', profile: p };
     p.money -= pl.cost; p.owned.push(pl.id); p.sel = pl.id;
     saveField(nick_l, 'owned', JSON.stringify(p.owned));
-    saveField(nick_l, 'sel', JSON.stringify(p.sel));
+    saveField(nick_l, 'sel', p.sel); // id без JSON.stringify — иначе в БД попадают кавычки и чтение сбрасывает выбор на po2
     saveField(nick_l, 'money', String(p.money));
     return { ok: true, profile: p };
   }
   if (act === 'sel') {
     if (!p.owned.includes(body.id)) return { ok: false, err: 'Самолёт не куплен', profile: p };
     p.sel = body.id;
-    saveField(nick_l, 'sel', JSON.stringify(p.sel));
+    saveField(nick_l, 'sel', p.sel); // id без JSON.stringify (см. комментарий в rowToProfile)
     return { ok: true, profile: p };
   }
   if (act === 'upg') {
