@@ -516,6 +516,8 @@ function onConn(sock: Socket) {
     const p = byToken((sock.data as any).token);
     if (!p) return cb ? cb({ ok: false, err: 'Нужно войти в профиль' }) : undefined;
     if ((sock.data as any).entId) return cb ? cb({ ok: false, err: 'Вы уже в небе' }) : undefined;
+    // первый живой пилот в комнате — свежий бой: боты воевали без людей, и счёт мог уползти (напр. 7:8)
+    if (!ents.some(e => e.kind === 'human')) resetRound();
     const humansBlue = ents.filter(e => e.kind === 'human' && e.team === 'blue').length;
     const humansRed = ents.filter(e => e.kind === 'human' && e.team === 'red').length;
     if (humansBlue + humansRed >= 10) return cb ? cb({ ok: false, err: 'Небо заполнено: 10/10 пилотов' }) : undefined;
