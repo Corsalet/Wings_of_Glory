@@ -6,7 +6,7 @@
 FROM oven/bun:1-slim
 WORKDIR /app/srv
 COPY mini-services/wog-server/package.json mini-services/wog-server/bun.lock ./
-COPY mini-services/wog-server/index.ts mini-services/wog-server/data.ts mini-services/wog-server/db.ts ./
+COPY mini-services/wog-server/index.ts mini-services/wog-server/game.ts mini-services/wog-server/data.ts mini-services/wog-server/db.ts mini-services/wog-server/dbcore.ts ./
 COPY public/game.html /app/public/game.html
 RUN bun install --frozen-lockfile
 ENV PORT=8080

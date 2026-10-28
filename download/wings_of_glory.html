@@ -1041,11 +1041,12 @@ function netSockCfg(){ // где искать сервер: ?srv= вручную
   if(/\.github\.io$/.test(h)) return {u:WOG_SRV_DEFAULT,p:'/wog/'};              // статика Pages — внешний игровой сервер
   return {u:'/',p:'/wog/'};                                                       // страницу отдал игровой сервер — свой origin
 }
-function netConnect(){
+async function netConnect(){
   if(typeof io!=='function'){ netStatus('нет библиотеки сети'); return; }
   if(location.protocol!=='http:'&&location.protocol!=='https:'){ netStatus('локальный файл — сеть недоступна'); return; }
   const cfg=netSockCfg();
   if(!cfg||!cfg.u){ netStatus('сервер не указан: добавь к ссылке ?srv=https://адрес-сервера'); return; }
+  if(cfg.u==='/'){ try{ await fetch('api/wog',{cache:'no-store',signal:AbortSignal.timeout(2500)}); }catch(e){} } // будим встроенный в Next мультиплеер (TatNet и т.п.)
   netStatus('подключение…');
   const sock=io(cfg.u,{path:cfg.p,transports:['websocket','polling'],reconnection:true,reconnectionDelay:1500});
   NET.sock=sock;

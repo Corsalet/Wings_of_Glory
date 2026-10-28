@@ -493,3 +493,18 @@ Stage Summary:
 - Пуш: `3ecc9fd..46a82ea main -> main` (токен в одноразовом URL, в .git/config НЕ сохранился — grep 0 совпадений).
 - GitHub main = 46a82ea подтверждён через API. Ремоут origin — чистый URL.
 - Пользователю: Render нет — даны пошаговые инструкции Render (Blueprint) и Railway; оба деплоят «сервер+игра» одним сервисом, мультиплеер работает по адресу сервиса без ?srv=.
+
+## Task 25 (продолжение): мультиплеер встроен в Next.js для TatNet — 2026-10-29
+- Пользователь задеплоил репо на TatNet (wings-of-glory.tatnet.app) как Next.js — игра отдавалась, но сервер не работал: /wog/ → 404/308.
+- Решение: мультиплеер встроен в Next-процесс (один сервис — сайт + бой):
+  * index.ts расщеплён: game.ts (вся боевая логика, export initGame(io)) + тонкий index.ts (bun-стендалоун: статика /health + Server+initGame).
+  * embed.ts: attachWog(httpServer) — socket.io на /wog/ для чужого HTTP-сервера.
+  * src/pages/api/wog.ts: ленивая инициализация по первому fetch (клиент сам «будит» сервер: netConnect → fetch('api/wog') при cfg.u==='/').
+  * upgrade-обработчик socket.io переставляется ПЕРЕД родным Next-обработчиком (иначе websocket-апгрейд убивался).
+- db.ts → dbcore.ts: адаптивный драйвер — createRequire в рантайме: bun → bun:sqlite, Node ≥ 22.3 → node:sqlite (getBuiltinModule как фолбэк). Пароли: argon2id под bun, scrypt под node (префиксы s1$/$argon2). ВАЖНО: Bun.sqlite как глобал НЕ существует (проверено на 1.3.14) — только import 'bun:sqlite'.
+- pages/ перенесён в src/pages/ (Next 16: pages и app должны быть в одном каталоге).
+- Root deps: + socket.io@^4.7.5, three@^0.170.0; next.config.ts: serverExternalPackages [socket.io, three].
+- Клиент (обе копии, md5 совпадает): netConnect async + будилка api/wog с AbortSignal.timeout(2500).
+- Dockerfile: COPY + game.ts dbcore.ts. README: секция TatNet.
+- Тесты: standalone bun :3055 — lives OK 15/15, smoke 16/16; Next standalone bun :3007 — smoke 16/16; Next standalone node :3008 — smoke 16/16, lives OK 15/15. Нюансы отладки: test_smoke не читал WOG_URL (исправлено); pkill по пути не убивает Next (process.title = next-server) — только kill по PID/порту; инвариант требовал чистую комнату (артефакт порядка тестов, не баг).
+- Воркспейс: :3030 перезапущен (health 200, шлюз :81 → 200).

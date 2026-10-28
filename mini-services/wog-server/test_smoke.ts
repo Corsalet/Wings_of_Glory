@@ -1,7 +1,7 @@
 // Смоук-тест wog-server: регистрация, дубликат ника, логин, join, снапшоты, claim.
 import { io, Socket } from 'socket.io-client';
 
-const URL = 'http://localhost:3030';
+const URL = process.env.WOG_URL || 'http://localhost:3030';
 let passed = 0, failed = 0;
 function ok(name: string, cond: boolean, extra = '') {
   if (cond) { passed++; console.log('  ✓ ' + name + (extra ? ' · ' + extra : '')); }
