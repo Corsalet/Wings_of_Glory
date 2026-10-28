@@ -988,7 +988,8 @@ applyPlayerPlane();
 setupTiers();
 
 // ================= СЕТЬ: профиль (SQLite сервера) + бой 5×5 =================
-// Сервер: mini-services/wog-server — socket.io :3030 через шлюз (?XTransformPort=3030).
+// Сервер: mini-services/wog-server — socket.io на пути /wog/ (порт: 3030 через шлюз воркспейса ?XTransformPort=3030,
+// либо тот же origin, если страницу отдал сам игровой сервер — деплой одним сервисом; либо ?srv=адрес вручную).
 // Симуляция боя (боты, ракеты, ловушки, кобра, урон, жизни, раунды, награды) — на сервере.
 // Клиент шлёт только состояние своего самолёта (15 Гц) и заявки попаданий пулями.
 const NET={
@@ -1029,17 +1030,31 @@ function netAuthed(profile){
   NET.applyProfile(profile);
   netShowAuth(false); netPilotLine();
 }
+const WOG_SRV_DEFAULT=''; // адрес сервера для GitHub Pages (вписывается после деплоя, напр. 'https://wog-xxx.onrender.com'); можно не трогать — хватает ?srv= в ссылке
+function netSockCfg(){ // где искать сервер: ?srv= вручную → шлюз воркспейса → Pages (дефолт) → свой origin (страницу отдал сам игровой сервер)
+  try{
+    const q=new URLSearchParams(location.search).get('srv');
+    if(q) return {u:q.replace(/\/+$/,''),p:'/wog/'};
+  }catch(e){}
+  const h=(location.hostname||'').toLowerCase();
+  if(/(^|\.)space-z\.ai$/.test(h)) return {u:'/?XTransformPort=3030',p:'/wog/'}; // шлюз воркспейса → :3030
+  if(/\.github\.io$/.test(h)) return {u:WOG_SRV_DEFAULT,p:'/wog/'};              // статика Pages — внешний игровой сервер
+  return {u:'/',p:'/wog/'};                                                       // страницу отдал игровой сервер — свой origin
+}
 function netConnect(){
   if(typeof io!=='function'){ netStatus('нет библиотеки сети'); return; }
   if(location.protocol!=='http:'&&location.protocol!=='https:'){ netStatus('локальный файл — сеть недоступна'); return; }
+  const cfg=netSockCfg();
+  if(!cfg||!cfg.u){ netStatus('сервер не указан: добавь к ссылке ?srv=https://адрес-сервера'); return; }
   netStatus('подключение…');
-  const sock=io('/?XTransformPort=3030',{path:'/',transports:['websocket','polling'],reconnection:true,reconnectionDelay:1500});
+  const sock=io(cfg.u,{path:cfg.p,transports:['websocket','polling'],reconnection:true,reconnectionDelay:1500});
   NET.sock=sock;
   sock.on('connect', ()=>{
     netStatus('сеть: онлайн'); netMsg('');
     const tk=netTokenGet();
-    if(tk&&!NET.authed) sock.emit('auth:token',{token:tk},r=>{
-      if(r&&r.ok) netAuthed(r.profile); else netTokenClear();
+    if(tk) sock.emit('auth:token',{token:tk},r=>{ // ре-авторизация при каждом connect (после рестарта сервера сокет без токена — join падал «Нужно войти в профиль»)
+      if(r&&r.ok) netAuthed(r.profile);
+      else { netTokenClear(); if(NET.authed){ NET.authed=false; NET.profile=null; netShowAuth(true); netStatus('сессия истекла — войдите заново'); } }
     });
   });
   sock.on('disconnect', ()=>{ netStatus('связь потеряна'); if(NET.inRoom) netLeaveLocal(true); });

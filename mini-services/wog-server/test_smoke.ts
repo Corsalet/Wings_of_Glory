@@ -15,7 +15,7 @@ const emitCb = <T,>(s: Socket, ev: string, data: any) => new Promise<T>(r => s.e
 
 async function main() {
   const NICK = 'ТестЛётчик-' + ((Math.random() * 1e5) | 0);
-  const A = io(URL, { transports: ['websocket'] });
+  const A = io(URL, { transports: ['websocket'], path: '/wog/' });
   await once(A, 'connect');
 
   // 1. регистрация
@@ -23,13 +23,13 @@ async function main() {
   ok('register', reg.ok && reg.token && reg.profile.money === 1000, 'money=' + reg.profile?.money);
 
   // 2. дубликат ника (регистр не важен)
-  const B = io(URL, { transports: ['websocket'] });
+  const B = io(URL, { transports: ['websocket'], path: '/wog/' });
   await once(B, 'connect');
   const dup = await emitCb<any>(B, 'auth:register', { nick: NICK.toLowerCase(), pass: '9999' });
   ok('duplicate nick rejected', !dup.ok, dup.err);
 
   // 3. логин с другого «устройства»
-  const C = io(URL, { transports: ['websocket'] });
+  const C = io(URL, { transports: ['websocket'], path: '/wog/' });
   await once(C, 'connect');
   const lin = await emitCb<any>(C, 'auth:login', { nick: NICK, pass: '1234' });
   ok('login from 2nd device', lin.ok && lin.profile.nick === NICK);

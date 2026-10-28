@@ -2,6 +2,8 @@
 // Симуляция серверная: боты (ИИ), ракеты (обеих сторон), ловушки, кобра, урон, жизни, раунды, награды.
 // Клиенты шлют только состояние своего самолёта и заявки попаданий пулями (с валидацией).
 import { createServer } from 'http';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { Server, Socket } from 'socket.io';
 import { Vector3, Quaternion } from 'three';
 import {
@@ -10,15 +12,35 @@ import {
 } from './data';
 import { register, login, byToken, shop, addReward, getProfile, Profile } from './db';
 
-const PORT = Number(process.env.WOG_PORT || 3030);
+const PORT = Number(process.env.PORT || process.env.WOG_PORT || 3030); // PORT задаёт хостинг (Render/Railway/Docker)
 const TEAM_SIZE = 5;          // 5×5
 const LIVES = 3;              // жизней у каждого (счёт команды = 5×3 = 15)
 const SIM_DT = 1 / 30;        // тик симуляции
 const SNAP_EVERY = 2;         // снапшот каждые 2 тика (15 Гц)
 
-const httpServer = createServer();
+// Клиент (game.html) раздаётся этим же сервером/портом — деплой одним сервисом,
+// страница и сокет живут на одном origin (искл.: Pages/воркспейс — там сокет по ?srv/шлюзу).
+const GAME_HTML: Buffer | null = (() => {
+  for (const c of ['../../public/game.html', '../public/game.html', 'public/game.html']) {
+    try { const p = join(import.meta.dir, c); if (existsSync(p)) return readFileSync(p); } catch {}
+  }
+  return null;
+})();
+const httpServer = createServer((req, res) => {
+  const u = (req.url || '/').split('?')[0];
+  if (GAME_HTML && (u === '/' || u === '/game.html' || u === '/index.html')) {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+    res.end(GAME_HTML);
+  } else if (u === '/health') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('ok');
+  } else {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('not found');
+  }
+});
 const io = new Server(httpServer, {
-  path: '/',
+  path: '/wog/', // НЕ '/': иначе движок перехватывает ВСЕ запросы (проверка slice по префиксу) и статика не отдаётся
   cors: { origin: '*', methods: ['GET', 'POST'] },
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -531,9 +553,12 @@ io.on('connection', (sock: Socket) => {
     const team: Team = humansBlue < humansRed ? 'blue' : humansRed < humansBlue ? 'red' : (Math.random() < 0.5 ? 'blue' : 'red');
     const pl = PLANES.find(x => x.id === p.sel) || PLANES[0];
     const pst = planeStatsHuman(pl, p.upg[p.sel] || { eng: 0, dur: 0, hdl: 0, gun: 0 });
-    // освободить место: убрать одного бота этой команды
+    // освободить место: убрать одного бота этой команды (его остаток жизней уходит из счёта — иначе синие/красные получают лишние жизни: было 18 vs 15)
     const bot = ents.find(e => e.kind === 'bot' && e.team === team);
-    if (bot) ents.splice(ents.indexOf(bot), 1);
+    if (bot) {
+      if (!roundOver && bot.alive) { if (team === 'blue') blueLives = Math.max(0, blueLives - bot.lives); else redLives = Math.max(0, redLives - bot.lives); }
+      ents.splice(ents.indexOf(bot), 1);
+    }
     const ent: Ent = {
       id: 'e' + (++eid), kind: 'human', team, name: p.nick, planeId: pl.id, pst,
       pos: V3(), quat: new Quaternion(), vel: V3(), speed: pst.maxSpd * 0.65,
@@ -629,7 +654,15 @@ function leaveRoom(sock: Socket) {
   const team = e.team, wasAlive = e.alive;
   ents.splice(i, 1);
   if (wasAlive && !roundOver) { if (team === 'blue') blueLives = Math.max(0, blueLives - e.lives); else redLives = Math.max(0, redLives - e.lives); }
+  const hadB = ents.filter(x => x.team === 'blue').length, hadR = ents.filter(x => x.team === 'red').length;
   fillBots();
+  // добор-боты привносят свои жизни в пул (симметрично замене бота игроком при join): уход игрока не истощает команду
+  if (!roundOver) {
+    const addB = ents.filter(x => x.team === 'blue').length - hadB;
+    const addR = ents.filter(x => x.team === 'red').length - hadR;
+    if (addB > 0) blueLives += LIVES * addB;
+    if (addR > 0) redLives += LIVES * addR;
+  }
   broadcastEnts();
   lobbyInfo();
   io.emit('msg', { text: e.name + ' покинул бой' });
@@ -639,7 +672,8 @@ function lobbyInfo() {
   io.emit('lobby', { online: io.engine.clientsCount, room: ents.filter(e => e.kind === 'human').length });
 }
 
+resetRound(); // небо готово сразу при старте: боты обеих команд на местах — иначе первый join не находит бота для замены и получает 18/15 вместо 15/15
 httpServer.listen(PORT, () => {
-  console.log(`WOG server on :${PORT}`);
+  console.log(`WOG server on :${PORT} (socket /wog/ + client ${GAME_HTML ? 'bundled' : 'NOT FOUND — только сокет'})`);
 });
 process.on('SIGTERM', () => { httpServer.close(() => process.exit(0)); });

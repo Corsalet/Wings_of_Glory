@@ -1,9 +1,11 @@
 // Профили игроков: SQLite (bun:sqlite) + пароли (Bun.password) + сессии-токены.
 // Ник уникален (без учёта регистра) — дубликаты исключены на уровне БД и явной проверки.
 import { Database } from 'bun:sqlite';
+import { mkdirSync } from 'fs';
 import { PREM_CODE, PLANES } from './data';
 
 const db = new Database(new URL('./data/wog.db', import.meta.url).pathname);
+mkdirSync(new URL('./data', import.meta.url).pathname, { recursive: true }); // каталог БД может не существовать (Docker)
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec(`
 CREATE TABLE IF NOT EXISTS players(

@@ -1,0 +1,12 @@
+# Render.com: New + → Blueprint → выбери репозиторий — сервис поднимется по этому файлу.
+# Бесплатный план: сервис засыпает после ~15 мин простоя (первый заход «прогреет» его за ~30-60 с).
+# База игроков — SQLite внутри контейнера: на free-плане очищается при рестарте/редеплое.
+services:
+  - type: web
+    name: wings-of-glory
+    runtime: docker
+    dockerfilePath: ./mini-services/wog-server/Dockerfile
+    dockerContext: .
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /health
