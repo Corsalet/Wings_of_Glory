@@ -1,0 +1,3121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wings of Glory — Закат · авиасимулятор</title>
+<style>
+  :root{ --amber:#ffcf8f; --amber-dim:rgba(255,207,143,.55); --red:#ff5a4a; --panel:rgba(20,12,10,.85); }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#1a0f14}
+  body{font-family:'Segoe UI',Arial,sans-serif;user-select:none;-webkit-user-select:none;cursor:crosshair}
+  canvas{display:block}
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;color:var(--amber);text-shadow:0 1px 3px rgba(0,0,0,.85);opacity:0;transition:opacity .5s}
+  #hud.on{opacity:1}
+  .hud-label{font-size:10px;letter-spacing:2px;color:var(--amber-dim);margin-bottom:2px}
+  .hud-value{font-family:'Consolas','Courier New',monospace;font-size:26px;font-weight:700;line-height:1}
+  .unit{font-size:11px;margin-left:4px;color:var(--amber-dim)}
+  #hud-left{position:absolute;top:18px;left:20px;display:flex;flex-direction:column;gap:14px}
+  #hud-right{position:absolute;top:18px;right:20px;display:flex;flex-direction:column;gap:14px;align-items:flex-end;text-align:right}
+  .bar{width:170px;height:10px;border:1px solid var(--amber-dim);background:rgba(0,0,0,.35);margin-top:5px}
+  .bar>div{height:100%;width:100%;transition:width .15s linear}
+  #thr-fill{background:linear-gradient(90deg,#c96a2a,#ffcf8f)}
+  #hp-fill{background:#7ec850}
+  .hud-small{font-size:11px;color:var(--amber-dim);margin-top:3px;font-family:monospace}
+  #missiles{display:flex;gap:4px;justify-content:flex-end;margin-top:6px} /* ракеты — реактивные ранги VI–X */
+  #missiles i{width:9px;height:16px;border:1px solid var(--amber-dim);border-radius:2px}
+  #missiles i.on{background:#ffcf8f;box-shadow:0 0 6px rgba(255,180,90,.6)}
+  #flares{display:flex;gap:4px;justify-content:flex-end;margin-top:6px} /* тепловые ловушки — клавиша G */
+  #flares i{width:12px;height:8px;border:1px solid var(--amber-dim);border-radius:2px}
+  #flares i.on{background:#ffd98f;box-shadow:0 0 6px rgba(255,190,90,.6)}
+  #msl-warn{position:absolute;left:50%;top:26%;transform:translateX(-50%);font-family:'Consolas','Courier New',monospace;font-size:30px;font-weight:700;color:#ff5a4a;letter-spacing:2px;white-space:nowrap;display:none;text-shadow:0 0 18px rgba(255,60,30,.8),0 2px 6px #000}
+  #v-kills{color:#ffd27a}
+  #v-g.hot{color:#ff5a4a;text-shadow:0 0 9px rgba(255,60,30,.65)}
+  #crosshair{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+  #lock-ind{position:absolute;left:50%;top:calc(50% + 48px);transform:translateX(-50%);font-size:12px;letter-spacing:3px;color:#ffd24a;display:none;font-weight:700}
+  #warn{position:absolute;left:50%;top:15%;transform:translateX(-50%);font-size:15px;letter-spacing:2px;color:#ff6a55;font-weight:700;text-align:center;animation:blink 1s infinite;display:none;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+  @keyframes blink{50%{opacity:.25}}
+  #msg{position:absolute;left:50%;top:23%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px}
+  .toast{font-size:15px;font-weight:600;color:#ffe2b8;animation:toast 3s forwards;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+  @keyframes toast{0%{opacity:0;transform:translateY(-8px)}10%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}
+  /* панель подсказок клавиш */
+  #keypanel{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:16px;align-items:center;background:rgba(20,12,10,.55);border:1px solid rgba(255,180,110,.22);border-radius:9px;padding:8px 16px;backdrop-filter:blur(3px)}
+  .kp-item{display:flex;align-items:center;gap:7px;font-size:11px;color:rgba(255,225,185,.88);white-space:nowrap;letter-spacing:.5px}
+  .kp-item svg{display:block;opacity:.95}
+  .kbd{font-family:monospace;font-size:10.5px;font-weight:700;color:#ffcf8f;border:1px solid rgba(255,190,120,.45);border-radius:4px;padding:2px 6px;background:rgba(0,0,0,.35)}
+  /* компас/радар */
+  #compass{position:absolute;bottom:16px;left:18px;width:128px;height:128px;border-radius:50%;background:rgba(20,12,10,.55);border:1px solid rgba(255,180,110,.3);box-shadow:0 4px 18px rgba(0,0,0,.45);overflow:hidden}
+  #compass svg{position:absolute;left:0;top:0}
+  #hdg{position:absolute;left:0;right:0;bottom:14px;text-align:center;font-family:monospace;font-size:12px;font-weight:700;color:var(--amber);text-shadow:0 1px 2px #000}
+  /* ростер команд */
+  #roster{background:rgba(20,12,10,.55);border:1px solid rgba(255,180,110,.22);border-radius:8px;padding:9px 13px;backdrop-filter:blur(2px)}
+  .roster-cols{display:flex;gap:22px}
+  .roster-team{font-size:10px;letter-spacing:2px;margin-bottom:4px;font-weight:800}
+  .roster-team.tblue{color:#8ab8e8}
+  .roster-team.tred{color:#ff8a70}
+  .roster-row{display:flex;justify-content:space-between;gap:14px;font-size:11.5px;font-family:monospace;color:#e8d5b8;padding:1px 0;min-width:86px}
+  .roster-row b{color:#ffd27a;font-weight:700}
+  .roster-row.me span{color:#a8d8ff;font-weight:700}
+  .roster-row.ally span{color:#8ab8e8}
+  .roster-row.dead{opacity:.35}
+  /* полоски HP команд */
+  #team-bars{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center;width:470px;max-width:42vw}
+  .tb-side{flex:1}
+  .tb-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .tb-name{font-size:10px;letter-spacing:2px;font-weight:800}
+  .tb-name.blue{color:#8ab8e8}
+  .tb-name.red{color:#ff8a70}
+  .tb-num{font-family:monospace;font-size:11px;color:var(--amber-dim)}
+  .tb-bar{height:9px;border:1px solid rgba(255,180,110,.35);background:rgba(0,0,0,.4);border-radius:2px;overflow:hidden;display:flex}
+  #tb-blue{height:100%;width:100%;background:linear-gradient(90deg,#3a6ea8,#8ac0f0)}
+  #tb-red{height:100%;width:100%;background:linear-gradient(90deg,#ff7a5a,#a83226)}
+  .tb-side.r .tb-bar{justify-content:flex-end}
+  .tb-vs{font-size:11px;font-weight:900;color:var(--amber-dim)}
+  /* приборы справа снизу */
+  #hud-flight{position:absolute;bottom:16px;right:20px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;text-align:right}
+  #hud-flight .bar{width:150px}
+  /* компактный список целей */
+  #tgt-list{margin-top:2px;background:rgba(20,12,10,.55);border:1px solid rgba(255,180,110,.22);border-radius:8px;padding:8px 11px;min-width:150px;backdrop-filter:blur(2px)}
+  .tgt-row{display:flex;align-items:center;gap:7px;font-family:monospace;font-size:11px;color:rgba(255,190,150,.92);padding:1.5px 0}
+  .tgt-row i{width:7px;height:7px;border-radius:50%;background:#ff5a4a;flex:none;box-shadow:0 0 5px rgba(255,90,60,.6)}
+  .tgt-row .td{margin-left:auto;color:var(--amber)}
+  .tgt-row.lock{color:#ffd24a}
+  .tgt-row.lock .td{color:#ffd24a}
+  /* упреждающий круг */
+  #lead{position:absolute;transform:translate(-50%,-50%);display:none;pointer-events:none;filter:drop-shadow(0 0 4px rgba(255,210,74,.7))}
+  #dmg{position:fixed;inset:0;pointer-events:none;z-index:6;background:radial-gradient(ellipse at center,transparent 45%,rgba(200,30,20,.6) 100%);opacity:0}
+  #gveil{position:fixed;inset:0;pointer-events:none;z-index:7;opacity:0;background:radial-gradient(ellipse at center,rgba(0,0,0,.45) 20%,rgba(0,0,0,.92) 60%,#000 100%)}
+  #gred{position:fixed;inset:0;pointer-events:none;z-index:7;opacity:0;background:radial-gradient(ellipse at center,rgba(140,15,8,.3) 25%,rgba(165,25,12,.85) 100%)}
+  #gblack{position:fixed;inset:0;pointer-events:none;z-index:8;opacity:0;background:#000}
+  #gbig{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%);pointer-events:none;z-index:9;font-family:'Consolas','Courier New',monospace;font-size:42px;font-weight:700;color:#ff5a4a;text-shadow:0 0 20px rgba(255,60,30,.85),0 2px 6px #000;opacity:0;letter-spacing:2px;white-space:nowrap}
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:4;background:radial-gradient(ellipse at center,transparent 62%,rgba(10,5,15,.45) 100%)}
+  /* маркеры целей */
+  #brackets{position:fixed;inset:0;pointer-events:none;z-index:4}
+  .tgt{position:absolute;width:36px;height:36px;border:1.5px solid rgba(255,95,70,.85);transform:translate(-50%,-50%);display:none}
+  .tgt::before,.tgt::after{content:'';position:absolute;width:8px;height:8px;border:2px solid rgba(255,95,70,.9)}
+  .tgt::before{top:-4px;left:-4px;border-right:none;border-bottom:none}
+  .tgt::after{bottom:-4px;right:-4px;border-left:none;border-top:none}
+  .tgt .lbl{position:absolute;top:38px;left:50%;transform:translateX(-50%);font-size:10px;color:rgba(255,160,125,.95);white-space:nowrap;font-family:monospace;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+  .tgt.lock{border-color:#ffd24a;box-shadow:0 0 9px rgba(255,210,74,.55)}
+  .tgt.lock::before,.tgt.lock::after{border-color:#ffd24a}
+  .tgt.lock .lbl{color:#ffd24a}
+  /* ---------- оверлеи ---------- */
+  .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(35,16,20,.72),rgba(10,5,10,.93));backdrop-filter:blur(3px)}
+  .panel{max-width:600px;width:94%;text-align:center;background:var(--panel);border:1px solid rgba(255,180,110,.25);border-radius:10px;padding:32px 38px;box-shadow:0 20px 80px rgba(0,0,0,.65)}
+  .title{font-size:34px;font-weight:900;letter-spacing:6px;color:#ffd9a0;text-shadow:0 2px 14px rgba(255,120,40,.5)}
+  .subtitle{margin-top:7px;font-size:12px;letter-spacing:4px;color:var(--amber-dim);text-transform:uppercase}
+  .controls{margin:24px auto 6px;display:grid;grid-template-columns:1fr 1fr;gap:9px 24px;text-align:left}
+  .ck{font-size:12.5px;color:#e8cfa8;display:flex;flex-direction:column}
+  .ck span{font-family:monospace;font-weight:700;color:#ffb060;font-size:13px}
+  button{margin-top:22px;pointer-events:auto;cursor:pointer;background:transparent;color:#ffd9a0;border:1.5px solid #d98a4a;border-radius:6px;padding:12px 38px;font-size:16px;font-weight:800;letter-spacing:3px;transition:.2s;font-family:inherit}
+  button:hover{background:#d98a4a;color:#241208;box-shadow:0 0 26px rgba(255,140,60,.5)}
+  button.secondary{border-color:#7a6a55;color:#c9b490;padding:12px 22px;letter-spacing:2px}
+  button.secondary:hover{background:#7a6a55;color:#1c1108;box-shadow:0 0 18px rgba(120,100,80,.4)}
+  .hint{margin-top:12px;font-size:11px;color:var(--amber-dim)}
+  .stats{margin-top:16px;font-size:19px;color:#ffcf8f;font-family:monospace}
+  #ov-death .title{color:#ff7a5e;text-shadow:0 2px 14px rgba(255,50,30,.55)}
+  /* ---------- ангар ---------- */
+  .hangar-panel{max-width:780px;max-height:90vh;overflow-y:auto;text-align:left;padding:26px 30px}
+  .hangar-panel .title{text-align:center}
+  .hangar-panel .subtitle{text-align:center}
+  .wallet{display:flex;justify-content:center;gap:14px;margin:14px 0 4px;font-family:monospace;font-size:15px;color:#ffd27a;font-weight:700}
+  .wallet .sep{color:var(--amber-dim)}
+  .tier-h{margin:14px 0 6px;font-size:11px;letter-spacing:3px;color:var(--amber-dim);font-weight:800;border-bottom:1px solid rgba(255,180,110,.18);padding-bottom:4px}
+  .plane-card{display:flex;align-items:center;gap:12px;padding:8px 10px;border:1px solid rgba(255,180,110,.14);border-radius:7px;margin-bottom:6px;background:rgba(0,0,0,.18)}
+  .plane-card.sel{border-color:#d98a4a;background:rgba(217,138,74,.09);box-shadow:0 0 14px rgba(217,138,74,.18)}
+  .tier-badge{flex:none;min-width:30px;height:30px;padding:0 7px;border-radius:15px;border:1.5px solid #d98a4a;color:#ffd9a0;font-weight:900;font-size:13px;display:flex;align-items:center;justify-content:center;font-family:monospace}
+  .tier-badge.prem{border-color:#e8c05a;color:#ffe9b0;box-shadow:0 0 10px rgba(232,192,90,.45)}
+  .plane-card.prem{border-color:rgba(232,192,90,.45);background:rgba(232,192,90,.07);box-shadow:0 0 14px rgba(232,192,90,.15)}
+  .prem-tag{font-size:9px;letter-spacing:1.5px;color:#e8c05a;border:1px solid rgba(232,192,90,.55);border-radius:3px;padding:1.5px 6px;margin-left:8px;vertical-align:middle;font-weight:800}
+  /* солнце-секрет в меню: кликни, чтобы ввести код */
+  #sun-egg{position:absolute;left:16%;top:20%;width:78px;height:78px;border-radius:50%;cursor:pointer;pointer-events:auto;display:none;
+    background:radial-gradient(circle,#fff6d0 0%,#ffd257 38%,rgba(255,160,40,.55) 66%,rgba(255,120,20,0) 100%);
+    box-shadow:0 0 60px 26px rgba(255,190,70,.5),0 0 150px 70px rgba(255,150,40,.25);
+    animation:sunpulse 2.4s ease-in-out infinite}
+  @keyframes sunpulse{50%{transform:scale(1.13);box-shadow:0 0 80px 36px rgba(255,205,85,.65),0 0 170px 86px rgba(255,150,40,.32)}}
+  #code-input{margin-top:16px;pointer-events:auto;width:82%;background:rgba(0,0,0,.4);border:1.5px solid #d98a4a;border-radius:6px;color:#ffd9a0;font-family:monospace;font-size:18px;letter-spacing:3px;text-align:center;padding:10px 12px;outline:none}
+  .pc-main{flex:1;min-width:0}
+  .pc-name{font-size:14.5px;font-weight:800;color:#ffe2b8;letter-spacing:.5px}
+  .pc-spec{font-family:monospace;font-size:10.5px;color:var(--amber-dim);margin-top:2px}
+  .pc-btn{flex:none;margin:0;padding:8px 14px;font-size:11.5px;letter-spacing:1.5px}
+  .pc-btn:disabled{opacity:.45;cursor:default;pointer-events:none}
+  .pc-btn.owned{border-color:#7a9a5a;color:#b8d890}
+  .pc-btn.owned:hover{background:#5a7a42;color:#141c08;box-shadow:0 0 14px rgba(120,180,80,.35)}
+  .upg-box{margin-top:16px;border:1px solid rgba(255,180,110,.2);border-radius:8px;padding:12px 14px;background:rgba(0,0,0,.22)}
+  .upg-title{font-size:12px;letter-spacing:2.5px;color:#ffd9a0;font-weight:800;margin-bottom:9px}
+  .upg-row{display:flex;align-items:center;gap:10px;padding:5px 0}
+  .upg-name{width:120px;font-size:11.5px;font-weight:700;color:#e8cfa8;letter-spacing:1px}
+  .upg-name small{display:block;font-weight:400;color:var(--amber-dim);font-size:9.5px;letter-spacing:.3px}
+  .pips{display:flex;gap:4px;width:92px}
+  .pip{width:13px;height:13px;border-radius:50%;border:1.5px solid rgba(255,180,110,.4)}
+  .pip.on{background:#d98a4a;border-color:#ffb060;box-shadow:0 0 7px rgba(255,140,60,.55)}
+  .upg-cost{font-family:monospace;font-size:11px;color:#ffd27a;width:110px}
+  .upg-btn{margin:0;padding:6px 12px;font-size:10.5px;letter-spacing:1.5px}
+  .upg-btn:disabled{opacity:.4;cursor:default;pointer-events:none}
+  .reset-row{text-align:center;margin-top:10px}
+  .reset-row button{margin:0;padding:5px 12px;font-size:9.5px;letter-spacing:1.5px;border-color:#6a4a42;color:#a88478}
+  .reset-row button:hover{background:#6a4a42;color:#1c0f0a;box-shadow:none}
+  #err{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;color:#ffba90;background:#160b10;font-size:15px;text-align:center;padding:30px;line-height:1.8}
+  /* ---------- СЕТЬ 5×5: ПРОФИЛИ И БОЙ ---------- */
+  #net-box{margin-top:14px;border-top:1px solid rgba(255,207,143,.25);padding-top:12px;width:100%}
+  .net-head{font-size:11px;letter-spacing:3px;color:var(--amber-dim);display:flex;justify-content:space-between;margin-bottom:8px}
+  #net-status{color:#8fd070;font-family:monospace}
+  #net-auth input{width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(255,207,143,.35);color:var(--amber);padding:8px 10px;font-size:13px;margin-bottom:6px;font-family:inherit;letter-spacing:1px;outline:none;pointer-events:auto}
+  #net-auth input:focus{border-color:var(--amber)}
+  #net-btnrow{display:flex;gap:8px}
+  #net-btnrow button{flex:1;margin-top:0;padding:9px 10px;font-size:12px;letter-spacing:2px}
+  #net-msg{min-height:15px;margin-top:6px;color:#ff8a70;font-size:11px}
+  #net-pilot{font-size:13px;color:var(--amber);margin-bottom:8px;font-family:monospace}
+  #net-online{font-size:11px;color:var(--amber-dim);margin-top:6px;font-family:monospace}
+  #btn-net-join{width:100%;margin-top:0;border-color:#d98a4a}
+  #btn-net-logout{width:100%}
+  .hidden{display:none!important}
+</style>
+</head>
+<body>
+<div id="vig"></div>
+<div id="dmg"></div>
+<div id="gveil"></div>
+<div id="gred"></div>
+<div id="gblack"></div>
+<div id="gbig"></div>
+<div id="brackets"></div>
+
+<div id="hud">
+  <div id="hud-left">
+    <div id="roster">
+      <div class="hud-label">ОТРЯДЫ · СБИТО</div>
+      <div class="roster-cols">
+        <div>
+          <div class="roster-team tblue">СИНИЕ</div>
+          <div class="roster-row me"><span>Вы</span><b id="rk-me">0</b></div>
+          <div class="roster-row ally" id="rr-a0"><span>Сокол</span><b id="rk-a0">0</b></div>
+          <div class="roster-row ally" id="rr-a1"><span>Стрела</span><b id="rk-a1">0</b></div>
+          <div class="roster-row ally" id="rr-a2"><span>Клим</span><b id="rk-a2">0</b></div>
+          <div class="roster-row ally" id="rr-a3"><span>Тайфун</span><b id="rk-a3">0</b></div>
+        </div>
+        <div>
+          <div class="roster-team tred">КРАСНЫЕ</div>
+          <div class="roster-row" id="rr-b0"><span>Барон</span><b id="rk-b0">0</b></div>
+          <div class="roster-row" id="rr-b1"><span>Факел</span><b id="rk-b1">0</b></div>
+          <div class="roster-row" id="rr-b2"><span>Гриф</span><b id="rk-b2">0</b></div>
+          <div class="roster-row" id="rr-b3"><span>Ворон</span><b id="rk-b3">0</b></div>
+          <div class="roster-row" id="rr-b4"><span>Шторм</span><b id="rk-b4">0</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="team-bars">
+    <div class="tb-side">
+      <div class="tb-head"><span class="tb-name blue">СИНИЕ</span><span class="tb-num" id="tb-blue-n">100</span></div>
+      <div class="tb-bar"><div id="tb-blue"></div></div>
+    </div>
+    <div class="tb-vs">VS</div>
+    <div class="tb-side r">
+      <div class="tb-head"><span class="tb-num" id="tb-red-n">150</span><span class="tb-name red">КРАСНЫЕ</span></div>
+      <div class="tb-bar"><div id="tb-red"></div></div>
+    </div>
+  </div>
+  <div id="hud-right">
+    <div><div class="hud-label">ПРОЧНОСТЬ</div><div class="bar"><div id="hp-fill"></div></div><div class="hud-small" id="v-hp">100 / 100</div></div>
+    <div id="msl-card" style="display:none"><div class="hud-label">РАКЕТЫ</div><div id="missiles"></div></div>
+    <div id="flr-card" style="display:none"><div class="hud-label">ЛОВУШКИ · G</div><div id="flares"></div></div>
+    <div id="cobra-card" style="display:none"><div class="hud-label">КОБРА · C</div><div class="bar"><div id="cobra-fill"></div></div></div>
+    <div><div class="hud-label">ЖИЗНИ</div><div class="hud-value" id="v-lives">3</div></div>
+    <div><div class="hud-label">СБИТО</div><div class="hud-value" id="v-kills">0</div></div>
+    <div id="tgt-list">
+      <div class="hud-label">ЦЕЛИ</div>
+      <div id="tgt-rows"></div>
+    </div>
+  </div>
+  <div id="hud-flight">
+    <div><div class="hud-label">СКОРОСТЬ</div><div class="hud-value"><span id="v-speed">0</span><span class="unit">км/ч</span></div></div>
+    <div><div class="hud-label">ВЫСОТА</div><div class="hud-value"><span id="v-alt">0</span><span class="unit">м</span></div></div>
+    <div><div class="hud-label">ТЯГА</div><div class="bar"><div id="thr-fill"></div></div><div class="hud-small" id="v-thr">65%</div></div>
+    <div><div class="hud-label">ПЕРЕГРУЗКА</div><div class="hud-value"><span id="v-g">1.0</span><span class="unit">G</span></div></div>
+  </div>
+  <div id="crosshair">
+    <svg width="130" height="130" viewBox="0 0 130 130" fill="none">
+      <circle cx="65" cy="65" r="30" stroke="rgba(255,205,140,.75)" stroke-width="1.4"/>
+      <circle cx="65" cy="65" r="2.6" fill="rgba(255,120,60,.95)"/>
+      <line x1="65" y1="20" x2="65" y2="42" stroke="rgba(255,205,140,.8)" stroke-width="1.4"/>
+      <line x1="65" y1="88" x2="65" y2="110" stroke="rgba(255,205,140,.55)" stroke-width="1.4"/>
+      <line x1="20" y1="65" x2="42" y2="65" stroke="rgba(255,205,140,.55)" stroke-width="1.4"/>
+      <line x1="88" y1="65" x2="110" y2="65" stroke="rgba(255,205,140,.8)" stroke-width="1.4"/>
+    </svg>
+  </div>
+  <div id="lock-ind">ЗАХВАТ</div>
+  <div id="warn"></div>
+  <div id="msl-warn"></div>
+  <div id="msg"></div>
+  <div id="compass">
+    <svg width="128" height="128" viewBox="0 0 128 128">
+      <g id="rose-g"></g>
+    </svg>
+    <svg id="blips" width="128" height="128" viewBox="0 0 128 128"></svg>
+    <svg width="128" height="128" viewBox="0 0 128 128">
+      <path d="M64 44 L70 70 L64 63 L58 70 Z" fill="#ffcf8f" stroke="rgba(0,0,0,.6)" stroke-width="0.8"/>
+    </svg>
+    <div id="hdg">000°</div>
+  </div>
+  <div id="keypanel">
+    <div class="kp-item"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#ffcf8f" stroke-width="1.3"><circle cx="7" cy="7" r="4.6"/><path d="M7 0.5v3M7 10.5v3M0.5 7h3M10.5 7h3"/><circle cx="7" cy="7" r="1" fill="#ff7a4a" stroke="none"/></svg><span class="kbd">ЛКМ</span>огонь</div>
+    <div class="kp-item"><span class="kbd">Space</span>ракета</div>
+    <div class="kp-item"><span class="kbd">G</span>ловушки</div>
+    <div class="kp-item"><span class="kbd">C</span>кобра</div>
+    <div class="kp-item"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#ffcf8f" stroke-width="1.3"><rect x="1.5" y="3.5" width="11" height="8" rx="1.5"/><path d="M5 3.5 L6 1.8 h2 L9 3.5"/><circle cx="7" cy="7.5" r="2.2"/></svg><span class="kbd">B</span>камера</div>
+    <div class="kp-item"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#ffcf8f" stroke-width="1.3"><circle cx="6" cy="6" r="3.8"/><path d="M9 9 L12.5 12.5"/></svg><span class="kbd">Z / ПКМ</span>зум</div>
+  </div>
+</div>
+
+<div id="ov-start" class="overlay">
+  <div id="sun-egg" title="Что это блеснуло?.."></div>
+  <div class="panel">
+    <div class="title">WINGS OF GLORY</div>
+    <div class="subtitle">закат · дуэль над горами</div>
+    <div class="controls">
+      <div class="ck"><span>Мышь</span>крен и тангаж — основное управление</div>
+      <div class="ck"><span>W / S</span>тангаж — нос вниз / вверх</div>
+      <div class="ck"><span>A / D</span>крен — самолёт поворачивает</div>
+      <div class="ck"><span>Q / E</span>рыскание — нос влево / вправо</div>
+      <div class="ck"><span>Shift / Ctrl</span>тяга больше / меньше (X = как Ctrl)</div>
+      <div class="ck"><span>ЛКМ</span>пушки — трассеры</div>
+      <div class="ck"><span>Пробел</span>пуск ракеты — реактивные ранги</div>
+      <div class="ck"><span>G</span>тепловые ловушки — отвод ракет</div>
+      <div class="ck"><span>B</span>вид из кабины / сзади</div>
+      <div class="ck"><span>Z или ПКМ</span>зум камеры</div>
+      <div class="ck"><span>M</span>звук вкл/выкл</div>
+      <div class="ck"><span>Esc / R</span>пауза / новый вылет</div>
+    </div>
+    <button id="btn-start">ВЗЛЕТЕТЬ ▸</button><button id="btn-hangar" class="secondary" style="margin-left:10px">АНГАР ▸</button>
+    <div id="net-box">
+      <div class="net-head"><span>СЕТЬ · БОЙ 5×5</span><span id="net-status">подключение…</span></div>
+      <div id="net-auth">
+        <input id="net-nick" maxlength="16" autocomplete="off" spellcheck="false" placeholder="НИК (уникальный)">
+        <input id="net-pass" type="password" maxlength="32" placeholder="ПАРОЛЬ">
+        <div id="net-btnrow">
+          <button id="btn-net-login">ВОЙТИ ▸</button>
+          <button id="btn-net-reg" class="secondary">СОЗДАТЬ</button>
+        </div>
+        <div id="net-msg"></div>
+      </div>
+      <div id="net-user" style="display:none">
+        <div id="net-pilot"></div>
+        <button id="btn-net-join">СЕТЕВОЙ БОЙ 5×5 ▸</button>
+        <div id="net-online"></div>
+        <div id="net-btnrow" style="margin-top:6px"><button id="btn-net-logout" class="secondary">ВЫЙТИ ИЗ ПРОФИЛЯ</button></div>
+      </div>
+    </div>
+    <div class="hint" id="menu-wallet" style="margin-top:10px;font-family:monospace;font-size:12px;color:#ffd27a"></div>
+    <div class="hint">или нажмите Enter · клик по экрану захватывает мышь · самолёт летит только вперёд!</div>
+  </div>
+</div>
+
+<div id="ov-code" class="overlay hidden" style="z-index:12">
+  <div class="panel" style="max-width:430px">
+    <div id="code-form">
+      <div class="title" style="font-size:24px;letter-spacing:4px">СЕКРЕТНЫЙ КОД</div>
+      <div class="hint" style="margin-top:10px">Что-то блеснуло в небе… Введите код доступа к опытному образцу.</div>
+      <input id="code-input" maxlength="24" autocomplete="off" spellcheck="false" placeholder="КОД">
+      <div class="hint" id="code-msg" style="margin-top:8px;min-height:16px;color:#ff8a70"></div>
+      <button id="btn-code-ok" style="margin-top:6px">ПОДТВЕРДИТЬ ▸</button>
+      <div class="hint" style="margin-top:10px">Esc — закрыть</div>
+    </div>
+    <div id="code-success" style="display:none">
+      <div class="title" style="font-size:24px;color:#b8e090;letter-spacing:4px">УСПЕШНО!</div>
+      <svg width="130" height="130" viewBox="0 0 100 100" style="display:block;margin:12px auto 0">
+        <path d="M50 4 L54.5 20 L90 44 L90 53 L57 49 L59 68 L72 76 L72 83 L55 79 L50 84 L45 79 L28 83 L28 76 L41 68 L43 49 L10 53 L10 44 L45.5 20 Z" fill="#7fa8c8" stroke="#1d3242" stroke-width="1.6"/>
+        <circle cx="50" cy="30" r="3.2" fill="#1d3242"/>
+        <path d="M40 62 L36 75 M60 62 L64 75" stroke="#1d3242" stroke-width="2.4"/>
+        <path d="M46 8 L50 2 L54 8" fill="#e8c05a" stroke="none"/>
+      </svg>
+      <div class="stats" style="margin-top:8px">Су-57 · ранг XI · <span style="color:#e8c05a">ПРЕМИУМ</span></div>
+      <div class="hint" style="margin-top:4px">Пятое поколение · 8 ракет · лучшие ТТХ в игре</div>
+      <button id="btn-get-prem" style="margin-top:14px;border-color:#e8c05a;color:#ffe9b0">ПОЛУЧИТЬ! ▸</button>
+    </div>
+  </div>
+</div>
+
+<div id="ov-death" class="overlay hidden">
+  <div class="panel">
+    <div class="title" id="death-title">САМОЛЁТ СБИТ</div>
+    <div class="subtitle">небо сегодня не ваше</div>
+    <div class="stats">Сбито врагов: <span id="death-kills">0</span></div>
+    <div class="stats" id="death-pay" style="font-size:15px;color:#b8d890"></div>
+    <div class="hint" id="death-by" style="font-size:12px"></div>
+    <button id="btn-again">ЛЕТИТЬ СНОВА ▸</button><button id="btn-menu-death" class="secondary" style="margin-left:10px">В МЕНЮ</button>
+    <div class="hint">или нажмите R / Enter</div>
+  </div>
+</div>
+
+<div id="ov-pause" class="overlay hidden">
+  <div class="panel">
+    <div class="title" style="font-size:26px">ПАУЗА</div>
+    <div class="hint" style="font-size:13px;margin-top:14px" id="pause-hint">Esc или клик — продолжить бой</div>
+    <button id="btn-menu-pause" class="secondary" style="margin-left:10px">В МЕНЮ</button>
+  </div>
+</div>
+
+<div id="ov-victory" class="overlay hidden">
+  <div class="panel">
+    <div class="title" style="color:#7ec850">ПОБЕДА</div>
+    <div class="subtitle">Небо очищено от врагов</div>
+    <div class="stats">Сбито врагов: <span id="victory-kills">0</span></div>
+    <div class="stats" id="victory-pay" style="font-size:15px;color:#b8d890"></div>
+    <button id="btn-victory">ЛЕТИТЬ СНОВА ▸</button><button id="btn-menu-victory" class="secondary" style="margin-left:10px">В МЕНЮ</button>
+  </div>
+</div>
+
+<div id="ov-hangar" class="overlay hidden">
+  <div class="panel hangar-panel">
+    <div class="title" style="font-size:26px">АНГАР</div>
+    <div class="subtitle">советская ветка · ранги I–XI · от По-2 до Су-57</div>
+    <div class="wallet"><span id="w-money">0 ₽</span><span class="sep">·</span><span id="w-xp">0 опыта</span></div>
+    <div id="hangar-list"></div>
+    <div id="upg-box" class="upg-box"></div>
+    <div class="reset-row"><button id="btn-prog-reset">СБРОСИТЬ ПРОГРЕСС</button></div>
+    <div style="text-align:center;margin-top:14px"><button id="btn-hangar-close">ЗАКРЫТЬ</button></div>
+    <div class="hint" style="text-align:center">Рубли — за бои (фраги, победа) · опыт — на улучшения самолёта · прогресс сохраняется автоматически</div>
+  </div>
+</div>
+
+<div id="err">Не удалось загрузить Three.js (нужен интернет при первом открытии файла).<br>Проверьте соединение и обновите страницу.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+(function(){
+'use strict';
+if(!window.THREE){ document.getElementById('err').style.display='flex'; return; }
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ================= УТИЛИТЫ =================
+const clamp = THREE.MathUtils.clamp;
+const rand = (a,b) => a + Math.random()*(b-a);
+const V3 = (x,y,z) => new THREE.Vector3(x,y,z);
+const _v1=V3(),_v2=V3(),_v3=V3(),_v4=V3(),_v5=V3(),_v6=V3(),_v7=V3();
+const _q1 = new THREE.Quaternion();
+const AX=V3(1,0,0), AY=V3(0,1,0), AZ=V3(0,0,1), FWD=V3(0,0,-1), WUP=V3(0,1,0);
+const $ = id => document.getElementById(id);
+const enemyTeam = () => NET.inRoom ? (NET.myTeam==='blue'?'red':'blue') : 'red'; // в сети свои враги зависят от команды
+
+// ================= КОНСТАНТЫ =================
+// (старый якорь баланса hp100/82 м/с теперь соответствует рангу III — Як-1/МиГ-3 в PLANES)
+const BOT_NAMES=['Барон','Факел','Гриф','Ворон','Шторм'];
+const ALLY_NAMES=['Сокол','Стрела','Клим','Тайфун'];
+const ALLY_SLOTS=[[-46,10,58],[46,10,58],[-28,42,100],[28,42,100]]; // [вправо, вверх, назад] от игрока
+
+// ================= САМОЛЁТЫ: СОВЕТСКАЯ ВЕТКА (ранги I–X: винтовые I–V, реактивные VI–X) =================
+// Баланс: ТТХ calibrated вокруг прежнего баланса игры (hp 100, 82 м/с, поворот 1.0, урон ~12) = ранг III
+const PLANES=[
+ {id:'po2',  name:'По-2',        tier:1, cost:0,     hp:70,  maxSpd:46, minSpd:20, turn:1.30, climb:30, guns:'1 × 7.62 мм ШКАС',        dmg:6,  mono:false, desc:'Учебный биплан. Медленный, но очень послушный.'},
+ {id:'i153', name:'И-153 Чайка', tier:1, cost:700,   hp:80,  maxSpd:54, minSpd:22, turn:1.38, climb:26, guns:'2 × 7.62 мм ШКАС',        dmg:7,  mono:false, desc:'Последний биплан-истребитель. Король виража.'},
+ {id:'i16',  name:'И-16 тип 10', tier:2, cost:2200,  hp:95,  maxSpd:63, minSpd:25, turn:1.15, climb:24, guns:'2 × 12.7 мм БС',          dmg:9,  mono:true,  desc:'Первый серийный моноплан. Короткий и вертлявый.'},
+ {id:'lagg3',name:'ЛаГГ-3',      tier:2, cost:3600,  hp:105, maxSpd:67, minSpd:26, turn:1.00, climb:22, guns:'1 × 20 мм + 2 × 7.62 мм', dmg:11, mono:true,  desc:'«Лакированный гарантированный гроб» — но очень крепкий.'},
+ {id:'yak1', name:'Як-1',        tier:3, cost:6500,  hp:100, maxSpd:71, minSpd:26, turn:1.10, climb:20, guns:'1 × 20 мм + 2 × 12.7 мм', dmg:12, mono:true,  desc:'Основа истребительной авиации 1942 года.'},
+ {id:'mig3', name:'МиГ-3',       tier:3, cost:8000,  hp:95,  maxSpd:78, minSpd:28, turn:0.90, climb:21, guns:'2 × 12.7 мм + 2 × 7.62',  dmg:10, mono:true,  desc:'Высотный перехватчик. Быстрый, но тяжёлый в вираже.'},
+ {id:'la5',  name:'Ла-5',        tier:4, cost:13000, hp:115, maxSpd:79, minSpd:27, turn:1.05, climb:19, guns:'2 × 20 мм ШВАК',          dmg:14, mono:true,  desc:'Мощный и живучий. Звезда Сталинграда.'},
+ {id:'yak9', name:'Як-9',        tier:4, cost:15000, hp:110, maxSpd:81, minSpd:27, turn:1.08, climb:19, guns:'1 × 20 мм + 2 × 12.7 мм', dmg:13, mono:true,  desc:'Универсал: пушечный кулак и высокая скорость.'},
+ {id:'yak3', name:'Як-3',        tier:5, cost:24000, hp:105, maxSpd:83, minSpd:26, turn:1.15, climb:17, guns:'1 × 20 мм + 2 × 12.7 мм', dmg:13, mono:true,  desc:'Легчайший истребитель войны. Гроза «мессеров» на малых.'},
+ {id:'la7',  name:'Ла-7',        tier:5, cost:30000, hp:120, maxSpd:86, minSpd:28, turn:1.10, climb:17, guns:'2 × 20 мм ШВАК',          dmg:15, mono:true,  desc:'Вершина винтовой ветки. На нём закончил войну Кожедуб.'},
+ // ===== реактивная эра: ранги VI–X (msl — боекомплект ракет, kph — реальная скорость для карточки) =====
+ {id:'mig9',  name:'МиГ-9',       tier:6,  cost:45000,  hp:110, maxSpd:90,  minSpd:30, turn:1.02, climb:16, guns:'1 × 37 мм Н-37 + 2 × 23 мм НС-23', dmg:12, mono:true, jet:true, msl:0, kph:910,  desc:'Первый реактивный истребитель СССР. Реверс эпохи.'},
+ {id:'mig15', name:'МиГ-15бис',   tier:7,  cost:62000,  hp:115, maxSpd:96,  minSpd:32, turn:1.00, climb:15, guns:'1 × 37 мм Н-37 + 2 × 23 мм НР-23', dmg:14, mono:true, jet:true, msl:0, kph:1076, desc:'Гроза «Сейбров» в небе Кореи. Легенда реактивного начала.'},
+ {id:'mig21', name:'МиГ-21бис',   tier:8,  cost:85000,  hp:110, maxSpd:104, minSpd:34, turn:0.96, climb:13, guns:'1 × 23 мм ГШ-23Л + 2 × Р-3С',      dmg:15, mono:true, jet:true, msl:2, kph:2230, desc:'Сверхзвуковой долгожитель. Первые ракеты в ветке.'},
+ {id:'mig29', name:'МиГ-29',      tier:9,  cost:115000, hp:125, maxSpd:112, minSpd:36, turn:0.98, climb:12, guns:'1 × 30 мм ГШ-301 + Р-27/Р-60',     dmg:17, mono:true, jet:true, msl:4, kph:2450, desc:'Фронтовой истребитель 4-го поколения. Кобра и «воронка».'},
+ {id:'su35',  name:'Су-35С',      tier:10, cost:150000, hp:140, maxSpd:118, minSpd:36, turn:1.02, climb:11, guns:'1 × 30 мм ГШ-301 + Р-73/Р-77',     dmg:18, mono:true, jet:true, msl:6, kph:2520, desc:'Сверхманёвренный 4++. Вершина советской школы.'},
+ {id:'su57',  name:'Су-57',       tier:11, cost:0,      hp:150, maxSpd:124, minSpd:36, turn:1.06, climb:10, guns:'1 × 30 мм ГШ-301 + Р-74М2/Р-77М',  dmg:20, mono:true, jet:true, msl:8, kph:2600, prem:true, desc:'Пятое поколение. Единственный премиум — только по секретному коду.'}
+];
+const TIER_ROMAN=['I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+// улучшения самолёта за опыт: 4 ветки × 5 уровней
+const UPG_BRANCHES=[
+ {id:'eng', name:'ДВИГАТЕЛЬ',  hint:'+4% макс. скорости'},
+ {id:'dur', name:'ПРОЧНОСТЬ',  hint:'+8 HP'},
+ {id:'hdl', name:'УПРАВЛЕНИЕ', hint:'+6% манёвренности'},
+ {id:'gun', name:'ВООРУЖЕНИЕ', hint:'+8% урона'}
+];
+const UPG_COST=[200,350,600,900,1300]; // опыт за 1-й..5-й уровень ветки
+
+// ================= ПРОГРЕСС: ВАЛЮТА / ОПЫТ / АНГАР =================
+const PROG_KEY='wog_progress_v1';
+let PROG={money:1000, xp:0, owned:['po2'], sel:'po2', upg:{}};
+function loadProg(){
+  try{ const s=localStorage.getItem(PROG_KEY); if(s){ const p=JSON.parse(s); if(p&&p.owned&&p.sel&&PLANES.some(x=>x.id===p.sel)) PROG=p; } }catch(e){}
+  if(!PROG.owned.includes('po2')) PROG.owned.push('po2');
+  if(!PROG.owned.includes(PROG.sel)) PROG.sel='po2';
+  if(!PROG.upg) PROG.upg={};
+  for(const pl of PLANES) if(!PROG.upg[pl.id]) PROG.upg[pl.id]={eng:0,dur:0,hdl:0,gun:0};
+}
+function saveProg(){ try{ localStorage.setItem(PROG_KEY, JSON.stringify(PROG)); }catch(e){} }
+loadProg();
+function planeStats(id){ // ТТХ самолёта + улучшения (игрок)
+  const p=PLANES.find(x=>x.id===id)||PLANES[0];
+  const u=PROG.upg[p.id]||{eng:0,dur:0,hdl:0,gun:0};
+  return { id:p.id, name:p.name, tier:p.tier, mono:p.mono, jet:p.jet||false, msl:p.msl||0, prem:p.prem||false,
+    maxSpd:p.maxSpd*(1+u.eng*0.04),
+    minSpd:p.minSpd,
+    hp:p.hp+u.dur*8,
+    turn:p.turn*(1+u.hdl*0.06),
+    climb:p.climb,
+    dmg:p.dmg*(1+u.gun*0.08) };
+}
+function planeStatsBot(pl){ // боты без улучшений; hp бота — 35% от полного ТТХ (ИИ должен оставаться сбиваемым, как раньше 30-35 против 100)
+  return { id:pl.id, name:pl.name, tier:pl.tier, mono:pl.mono, jet:pl.jet||false, msl:pl.msl||0, prem:pl.prem||false,
+    maxSpd:pl.maxSpd, minSpd:pl.minSpd, turn:pl.turn, climb:pl.climb, dmg:pl.dmg,
+    hp:Math.round(pl.hp*0.35) };
+}
+// награды за бой (экономика): фраг игроком 120₽/70оп, фраг союзника 50₽/30оп, краш красного 40₽/20оп,
+// участие 200₽/120оп, победа +600₽/+350оп сверху. Ла-7 (30000₽) ≈ 12-15 побед — долгая, но достижимая цель.
+let battlePay={money:0,xp:0};
+function payReward(m,x){ battlePay.money+=m; battlePay.xp+=x; }
+function applyRewards(victory){
+  const m=battlePay.money+(victory?600:200), x=battlePay.xp+(victory?350:120);
+  PROG.money+=m; PROG.xp+=x; saveProg();
+  return {money:m,xp:x};
+}
+
+// ================= МАТЧМЕЙКИНГ РАНГОВ =================
+// Пул рангов ботов относительно ранга игрока: никогда не слабее игрока (кроме топов), у топов чуть ниже.
+const MM_POOL={1:[[1,.5],[2,.3],[3,.2]], 2:[[2,.45],[3,.35],[4,.2]], 3:[[3,.4],[4,.35],[5,.25]], 4:[[3,.25],[4,.4],[5,.35]], 5:[[4,.45],[5,.55]], 6:[[5,.35],[6,.45],[7,.2]], 7:[[6,.3],[7,.45],[8,.25]], 8:[[7,.3],[8,.4],[9,.3]], 9:[[8,.25],[9,.4],[10,.35]], 10:[[9,.45],[10,.55]], 11:[[10,.4],[11,.6]]};
+function rollBotTier(T){
+  let r=Math.random();
+  for(const [t,w] of MM_POOL[T]){ r-=w; if(r<=0) return t; }
+  return T;
+}
+function setupTiers(){ // состав команд ЗЕРКАЛЬНЫЙ: у красных тот же набор рангов, что у синих — баланс гарантирован
+  const T=(PLANES.find(p=>p.id===PROG.sel)||PLANES[0]).tier;
+  const allyT=[T, rollBotTier(T), rollBotTier(T), rollBotTier(T), rollBotTier(T)]; // игрок + 4 ведомых
+  const redT=allyT.slice(1).sort(()=>Math.random()-0.5); // 5-й красный «ведущий» зеркалит игрока: его ранг = T
+  ALLIES.forEach((b,i)=>assignBotPlane(b, allyT[i+1]));
+  bots.filter(b=>b.team==='red').forEach((b,i)=>assignBotPlane(b, i===0?T:redT[i-1]));
+}
+function assignBotPlane(b, tier){ // назначить самолёт по рангу (модель перестраивается только при смене)
+  const opts=PLANES.filter(p=>p.tier===tier);
+  const pl=opts[Math.floor(Math.random()*opts.length)];
+  b.pst=planeStatsBot(pl);
+  if(b.planeBuilt!==pl.id){
+    scene.remove(b.mesh);
+    const base={mono:pl.mono, jet:pl.jet, tier:pl.tier, msl:pl.msl||0, prem:pl.prem||false};
+    const pal = b.team==='blue'
+      ? (pl.prem ? {body:0,wing:0,camoB:S57_CAMO_B,camoW:S57_CAMO_W,accent:0x36434e,star:true,...base}
+                 : {body:0x4a5d3a, wing:0x76854e, accent:0x9a4a1f, star:true, ...base})
+      : (pl.prem ? {body:0,wing:0,camoB:S57_CAMO_RB,camoW:S57_CAMO_RW,accent:0x4a120d,cross:true,...base}
+                 : {body:0xb02a20, wing:0xc94b3c, accent:0x801812, cross:true, ...base});
+    b.mesh=buildPlane(pal); scene.add(b.mesh);
+    b.pos=b.mesh.position; b.quat=b.mesh.quaternion; b.prop=b.mesh.userData.prop;
+    b.planeBuilt=pl.id;
+  }
+}
+
+// ================= РЕНДЕР / СЦЕНА =================
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0xdd8250);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xdd8250, 3500, 26000);
+const camera = new THREE.PerspectiveCamera(74, window.innerWidth/window.innerHeight, 0.3, 120000);
+
+// радиальная текстура (солнце, облака, частицы)
+function radialTex(stops, size){
+  size = size||128;
+  const c=document.createElement('canvas'); c.width=c.height=size;
+  const g=c.getContext('2d');
+  const gr=g.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  for(const s of stops) gr.addColorStop(s[0],s[1]);
+  g.fillStyle=gr; g.fillRect(0,0,size,size);
+  return new THREE.CanvasTexture(c);
+}
+
+// ================= НЕБО: ЗАКАТ =================
+const SUN_DIR = V3(-0.42,0.15,-0.89).normalize();
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(16000, 24, 14),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite:false, fog:false,
+    uniforms:{
+      top:{value:new THREE.Color(0x232a5c)},
+      mid:{value:new THREE.Color(0xa04a68)},
+      hor:{value:new THREE.Color(0xff9350)},
+      bot:{value:new THREE.Color(0x2a1c30)}
+    },
+    vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader:[
+      'uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform vec3 bot; varying vec3 vP;',
+      'void main(){',
+      '  float h = normalize(vP).y;',
+      '  vec3 c;',
+      '  if(h>=0.0){ c = mix(hor, mid, pow(min(h*2.6,1.0),0.75)); c = mix(c, top, pow(clamp((h-0.22)/0.78,0.0,1.0),0.9)); }',
+      '  else c = mix(hor, bot, min(-h*3.5,1.0));',
+      '  gl_FragColor = vec4(c,1.0);',
+      '}'
+    ].join('\n')
+  })
+);
+sky.renderOrder=-10;
+scene.add(sky);
+
+const sun = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: radialTex([[0,'rgba(255,246,220,1)'],[0.18,'rgba(255,210,140,0.9)'],[0.45,'rgba(255,140,70,0.35)'],[1,'rgba(255,120,60,0)']],128),
+  transparent:true, depthWrite:false, fog:false
+}));
+sun.scale.setScalar(5200);
+sun.renderOrder=-9;
+scene.add(sun);
+
+// ================= СВЕТ =================
+const dl = new THREE.DirectionalLight(0xffa268, 1.15);
+dl.position.copy(SUN_DIR).multiplyScalar(1000);
+scene.add(dl);
+scene.add(new THREE.HemisphereLight(0x7a5a8a, 0x4a3828, 0.55));
+scene.add(new THREE.AmbientLight(0x33222e, 0.4));
+
+// ================= ОБЛАКА =================
+const cloudTex = radialTex([[0,'rgba(255,236,228,0.6)'],[0.55,'rgba(255,236,228,0.28)'],[1,'rgba(255,236,228,0)']],256);
+const clouds=[];
+for(let i=0;i<96;i++){
+  const m = new THREE.SpriteMaterial({map:cloudTex, transparent:true, opacity:rand(0.35,0.75), depthWrite:false});
+  const s = new THREE.Sprite(m);
+  const w = rand(500,1300);
+  s.scale.set(w, w*rand(0.4,0.6), 1);
+  s.position.set(rand(-26000,26000), rand(800,3200), rand(-26000,26000));
+  scene.add(s); clouds.push(s);
+}
+
+// ================= ЛАНДШАФТ =================
+function terrainHeight(x,z){
+  let h = Math.sin(x*0.00075+0.4)*Math.cos(z*0.00062-0.3)*300
+        + Math.sin(x*0.0019+1.7)*Math.cos(z*0.0016+2.4)*140
+        + Math.sin(x*0.0052+0.9)*Math.sin(z*0.0047+1.2)*55;
+  const r = Math.max(0, 1 - Math.abs(Math.sin(x*0.0004+1.0)*Math.cos(z*0.0005-0.6))*2.2);
+  h += r*r*280;
+  const d = Math.sqrt(x*x+z*z);
+  const flat = Math.max(0, 1 - d/1300);
+  h = h*(1-flat*0.82) + 8*flat;
+  return h;
+}
+
+(function buildTerrain(){
+  const SIZE=100000, SEG=256; // карта 100×100 км — зона боя 25 км радиусом, детализация сохранена увеличением сетки
+  let geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
+  geo.rotateX(-Math.PI/2);
+  const pa = geo.attributes.position;
+  for(let i=0;i<pa.count;i++) pa.setY(i, terrainHeight(pa.getX(i), pa.getZ(i)));
+  geo.computeVertexNormals();
+  geo = geo.toNonIndexed();
+  const posA = geo.attributes.position;
+  const colors = new Float32Array(posA.count*3);
+  const deep=new THREE.Color(0x17405e), shal=new THREE.Color(0x2f7d9e), sand=new THREE.Color(0xc9a96e),
+        grass1=new THREE.Color(0x5d7c39), grass2=new THREE.Color(0x49632e), rock=new THREE.Color(0x6f655a),
+        snow=new THREE.Color(0xeceff2);
+  const tmpC=new THREE.Color();
+  const frac = x => x - Math.floor(x);
+  for(let i=0;i<posA.count;i+=3){
+    const y = (posA.getY(i)+posA.getY(i+1)+posA.getY(i+2))/3;
+    // нормаль грани (для скал на склонах)
+    const ux=posA.getX(i+1)-posA.getX(i), uy=posA.getY(i+1)-posA.getY(i), uz=posA.getZ(i+1)-posA.getZ(i);
+    const vx=posA.getX(i+2)-posA.getX(i), vy=posA.getY(i+2)-posA.getY(i), vz=posA.getZ(i+2)-posA.getZ(i);
+    const nyy = Math.abs(uz*vx-ux*vz);
+    const nl = Math.sqrt(ux*ux+uy*uy+uz*uz)*Math.sqrt(vx*vx+vy*vy+vz*vz)||1;
+    const slope = nyy/nl;
+    if(y<-2) tmpC.copy(deep).lerp(shal, clamp((y+60)/58,0,1));
+    else if(y<5) tmpC.copy(sand);
+    else if(y<300) tmpC.copy(grass1).lerp(grass2,(y-5)/295);
+    else if(y<480) tmpC.copy(grass2).lerp(rock,(y-300)/180);
+    else tmpC.copy(rock).lerp(snow, clamp((y-480)/160,0,1));
+    if(slope<0.82 && y>40 && y<470) tmpC.lerp(rock, clamp((0.82-slope)*3.2,0,0.85));
+    const t = 0.93 + 0.12*frac(Math.sin(i*12.9898)*43758.5453);
+    tmpC.r*=t; tmpC.g*=t; tmpC.b*=t;
+    for(let k=0;k<3;k++){ colors[(i+k)*3]=tmpC.r; colors[(i+k)*3+1]=tmpC.g; colors[(i+k)*3+2]=tmpC.b; }
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+  const terrain = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({vertexColors:true, flatShading:true, shininess:4, specular:0x332211}));
+  scene.add(terrain);
+})();
+
+// вода
+const water = new THREE.Mesh(
+  new THREE.PlaneGeometry(100000,100000),
+  new THREE.MeshPhongMaterial({color:0x1c5a80, transparent:true, opacity:0.9, shininess:130, specular:0x99bbff, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1})
+);
+water.rotation.x = -Math.PI/2;
+water.position.y = -5; // опущена против Z-fighting (мерцания) с дном
+scene.add(water);
+
+// ================= МОДЕЛЬ САМОЛЁТА =================
+// трапециевидное крыло (ExtrudeGeometry): root/tip — хорды у корня/законцовки, span — полуразмах,
+// sweep — сдвиг законцовки назад, sign — сторона (1 правое, -1 левое). Хорда тянется назад (+Z), толщина — вверх.
+function wingGeo(root,tip,span,sweep,thick,sign){
+  const s=new THREE.Shape();
+  s.moveTo(0,0); s.lineTo(sign*span,-sweep); s.lineTo(sign*span,-sweep-tip); s.lineTo(0,-root); s.closePath();
+  const g=new THREE.ExtrudeGeometry(s,{depth:thick,bevelEnabled:false});
+  g.rotateX(-Math.PI/2);
+  g.translate(0,-thick/2,0);
+  return g;
+}
+function buildPlane(p){
+  const g = new THREE.Group();
+  // материалы: либо плоский цвет, либо пиксельный камуфляж (camoB/camoW — палитры, у крыла блок крупнее)
+  const mBody = new THREE.MeshPhongMaterial(p.camoB
+    ? {map:pixelCamoTex(p.camoB,1,1), flatShading:true, shininess:25}
+    : {color:p.body, flatShading:true, shininess:25});
+  const mWing = new THREE.MeshPhongMaterial(p.camoW
+    ? {map:pixelCamoTex(p.camoW,0.5,0.5), flatShading:true, shininess:10}
+    : {color:p.wing, flatShading:true, shininess:10});
+  const mDark = new THREE.MeshPhongMaterial({color:0x2b2118, flatShading:true});
+  const mAcc  = new THREE.MeshPhongMaterial({color:p.accent, flatShading:true});
+  const add = (geo, mat, x,y,z, rx,ry,rz) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x,y,z);
+    if(rx) m.rotation.x=rx; if(ry) m.rotation.y=ry; if(rz) m.rotation.z=rz;
+    g.add(m); return m;
+  };
+  let prop;
+  let markX=2.7, markZ=-0.55, markY=0.40; // точка на крыле для опознавательных знаков (поршневые — дефолт, реактивные — пересчёт)
+  if(p.jet){
+    // ===== РЕАКТИВНЫЕ (ранги VI–X): круглый фюзеляж, нос-игла, стреловидные трапеции, форсаж =====
+    add(new THREE.CylinderGeometry(0.30,0.46,3.4,8), mBody, 0,0.05,-0.55, Math.PI/2); // корпус, сужение к хвосту
+    add(new THREE.CylinderGeometry(0.13,0.30,1.9,8), mBody, 0,0.05,2.05, Math.PI/2);  // хвостовая балка
+    const nc=add(new THREE.ConeGeometry(0.46,2.1,10), mBody, 0,0.05,-3.3, -Math.PI/2); // нос-«клюв»: широкий и плоский, как на фото
+    nc.scale.set(1.12,1,0.85); // расширяем в бока, прижимаем сверху — плоская «лопата» с кромками
+    // сопла: спарка двигателей у современных (ранг IX+), одиночное — у рангов VI–VIII
+    if(p.tier>=9) for(const s of [-1,1]) add(new THREE.CylinderGeometry(0.24,0.20,0.55,8), mDark, s*0.26,0.05,3.15, Math.PI/2);
+    else add(new THREE.CylinderGeometry(0.34,0.28,0.55,8), mDark, 0,0.05,3.15, Math.PI/2);
+    // воздухозаборники: боковые (4-е поколение) или брюшной (МиГ-21 и раньше)
+    if(p.tier>=9){ for(const s of [-1,1]) add(new THREE.BoxGeometry(0.30,0.44,1.9), mDark, s*0.60,0.0,-1.0); }
+    else add(new THREE.BoxGeometry(0.52,0.30,1.7), mDark, 0,-0.40,-0.8);
+    // параметры крыла: Су-57 (prem) — трапеция 42° посажена НАЗАД (корень ПК на ~45% длины, корень ЗК у сопел —
+    // как на эталонном фото сверху), ЗК чуть вынесена вперёд, размах/длина 0.70; впереди вдоль борта —
+    // крутой наплыв-LEX (вторая ступень ПК). Остальные реактивные — трапеция 33° (МиГ-15/29), пропорция 0.77.
+    const WR=p.prem?3.35:2.20, WT=p.prem?0.60:0.50, WS=p.prem?2.75:3.00, WSW=p.prem?2.45:1.95, WZ=p.prem?-0.67:-1.35, WY=p.prem?0.30:0.32;
+    markX=WS*0.85; markY=WY+0.085-(p.prem?markX*0.04:0); // звезда следует анхедралу крыла
+    markZ=WZ+(WSW*markX/WS + WR-(WR-WSW-WT)*markX/WS)/2; // середина хорды на выносе markX
+    if(p.prem){ // Су-57: плоский несущий корпус — крутой наплыв-LEX вдоль борта (стыкуется с корнем ПК крыла)
+      for(const s of [-1,1]){
+        const lx=new THREE.Mesh(wingGeo(2.75,0.55,0.67,3.24,0.11,s), mBody); // стреловидность наплыва ~78°
+        lx.position.set(s*0.30,0.31,-3.05); g.add(lx); // кромка от самого кончика носа, ЗК — точно на ПК крыла (kink)
+        add(new THREE.BoxGeometry(0.44,0.34,2.70), mBody, s*0.52,0.06,-1.20); // борт под наплывом
+        add(new THREE.BoxGeometry(0.40,0.36,2.30), mBody, s*0.42,0.06, 1.85); // мотогондолы к соплам
+      }
+    }
+    // крыло-трапеция (обрезанный треугольник у Су-57) + закрылковая полоса на задней кромке;
+    // у Су-57 — лёгкий анхедрал (полоса закрылка следует прогибу)
+    for(const s of [-1,1]){
+      const w=new THREE.Mesh(wingGeo(WR,WT,WS,WSW,0.13,s), mWing);
+      w.position.set(0,WY,WZ); if(p.prem) w.rotation.z=-s*0.04; g.add(w);
+      add(new THREE.BoxGeometry(WS*0.34,0.05,0.26), mAcc, s*WS*0.74, WY+0.075-(p.prem?WS*0.74*0.04:0), WZ+WR-(WR-WSW-WT)*0.74-0.15, 0, s*(WR-WSW-WT)/WS, p.prem?-s*0.04:0);
+    }
+    // стабилизатор: у Су-57 — 43°, корень у сопел, ЗА ЗК крыла виден чистый просвет (как на фото);
+    // у 4-го поколения — позади крыла на балке
+    for(const s of [-1,1]){
+      const t=new THREE.Mesh(wingGeo(p.prem?1.10:1.10, p.prem?0.38:0.32, p.prem?1.55:1.75, p.prem?1.45:1.10, 0.09, s), mWing);
+      t.position.set(0,p.prem?0.30:0.24,p.prem?2.10:2.55); g.add(t);
+    }
+    if(p.tier>=9){ // парные кили: наклон наружу (у Су-57 ~23°), стреловидная трапеция вместо бокса
+      const FC=p.prem?0.40:0.22;
+      for(const s of [-1,1]){
+        const f=new THREE.Mesh(wingGeo(p.prem?1.30:1.15, p.prem?0.50:0.45, p.prem?1.25:1.15, p.prem?0.70:0.55, 0.08, s), mAcc);
+        f.position.set(s*0.44,0.40,p.prem?2.55:2.85); f.rotation.z=s*(Math.PI/2-FC); g.add(f);
+      }
+    }
+    else add(new THREE.BoxGeometry(0.09,1.55,1.15), mAcc, 0,0.80,3.1, 0.30);
+    // фонарь-капля + гаргрот
+    const cp=add(new THREE.SphereGeometry(0.36,10,8), new THREE.MeshPhongMaterial({color:0xa8c8dc,transparent:true,opacity:0.5,side:THREE.DoubleSide}), 0,0.50,-0.15);
+    cp.scale.set(0.95,0.75,2.1);
+    add(new THREE.BoxGeometry(0.5,0.22,1.6), mBody, 0,0.40,1.35); // гаргрот — в цвет корпуса (как на фото)
+    // турбины в соплах (вращаются кодом винта) + форсажные пламена (мерцают в animate; ab — массив)
+    const fanXs = p.tier>=9 ? [-0.26,0.26] : [0];
+    prop = new THREE.Group(); prop.position.set(0,0.05,3.45);
+    for(const fx of fanXs){
+      const fan = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.42,8), mDark);
+      fan.rotation.x = Math.PI/2; fan.position.x = fx; prop.add(fan);
+    }
+    g.add(prop);
+    const glowMat = new THREE.MeshBasicMaterial({color:0xff9440, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false});
+    for(const fx of fanXs){ // свечение турбин — вне вращающейся группы, иначе спарка «облетает» центр
+      const glow = new THREE.Mesh(new THREE.CircleGeometry(0.19,14), glowMat);
+      glow.position.set(fx,0.05,3.57); g.add(glow);
+    }
+    const abMat=new THREE.MeshBasicMaterial({color:0xff8a30,transparent:true,opacity:0.45,blending:THREE.AdditiveBlending,depthWrite:false});
+    g.userData.ab = fanXs.map(fx=>{
+      const ab=new THREE.Mesh(new THREE.ConeGeometry(0.17,1.1,8), abMat);
+      ab.position.set(fx,0.05,3.7); ab.rotation.x=Math.PI/2; g.add(ab); return ab;
+    });
+    // подвесные ракеты — видимый боекомплект под крыльями
+    if(p.msl>0){
+      const mslM=new THREE.MeshPhongMaterial({color:0xd8d2c8, flatShading:true});
+      const n=Math.min(2,Math.ceil(p.msl/2));
+      const pz=p.prem?1.45:0.30; // под хордой крыла (у Су-57 крыло смещено назад — пилоны у его ПК)
+      for(const s of [-1,1]) for(let i=0;i<n;i++){
+        const px=s*(WS*0.47+i*WS*0.27);
+        add(new THREE.BoxGeometry(0.06,0.24,0.5), mDark, px,0.18,pz);
+        add(new THREE.CylinderGeometry(0.07,0.07,1.05,6), mslM, px,0.02,pz, Math.PI/2);
+        add(new THREE.ConeGeometry(0.07,0.3,6), mslM, px,0.02,pz-0.67, -Math.PI/2);
+        for(let k=0;k<4;k++){
+          const a=k*Math.PI/2;
+          const fin=add(new THREE.BoxGeometry(0.03,0.2,0.16), mslM, px+Math.sin(a)*0.09, 0.02+Math.cos(a)*0.09, pz+0.43);
+          fin.rotation.z=a;
+        }
+      }
+    }
+  } else {
+  // фюзеляж — округлый (8-гранник), сужение к хвосту, капот двигателя
+  add(new THREE.CylinderGeometry(0.30,0.52,4.6,8), mBody, 0,0.05,-0.7, Math.PI/2);
+  add(new THREE.CylinderGeometry(0.13,0.30,2.3,8), mBody, 0,0.10,2.5, Math.PI/2); // хвостовая балка
+  add(new THREE.CylinderGeometry(0.46,0.55,0.9,8), mDark, 0,0.05,-3.0, Math.PI/2);
+  // хвост: стабилизатор на балке + стреловидный киль
+  add(new THREE.BoxGeometry(3.1,0.09,1.05), mWing, 0,0.14,3.35);
+  add(new THREE.BoxGeometry(0.09,1.25,1.05), mAcc, 0,0.72,3.45, 0.22);
+  // крылья: биплан (ранг I) или моноплан (ранг II+) — трапеция с лёгким поперечным V
+  for(const s of [-1,1]){
+    const wu=new THREE.Mesh(wingGeo(p.mono?1.85:1.5, 0.68, 4.8, p.mono?0.45:0.3, 0.14, s), mWing);
+    wu.position.set(0,p.mono?0.35:1.42,-1.45); if(p.mono) wu.rotation.z=s*0.045;
+    g.add(wu);
+    if(!p.mono){
+      const wl=new THREE.Mesh(wingGeo(1.4,0.62,4.5,0.25,0.14,s), mWing);
+      wl.position.set(0,-0.18,-1.3); g.add(wl);
+    }
+  }
+  // стойки — только у биплана
+  if(!p.mono){
+    for(const sx of [-3.1,-1.55,1.55,3.1]) add(new THREE.BoxGeometry(0.09,1.6,0.12), mDark, sx,0.62,-0.45);
+    for(const sx of [-0.6,0.6]) add(new THREE.BoxGeometry(0.09,1.6,0.12), mDark, sx,0.62,-0.5);
+  }
+  // элероны на верхнем крыле
+  for(const sx of [-2.6,2.6]){
+    add(new THREE.BoxGeometry(2.4,0.06,0.3), mAcc, sx,(p.mono?0.35:1.42)+0.10,0.15);
+    if(!p.mono) add(new THREE.BoxGeometry(2.2,0.06,0.28), mAcc, sx,-0.08,0.1);
+  }
+  // кабина + пилот
+  add(new THREE.BoxGeometry(0.66,0.30,1.0), mDark, 0,0.48,0.42);
+  add(new THREE.BoxGeometry(0.5,0.3,0.05), new THREE.MeshPhongMaterial({color:0xa8c8dc,transparent:true,opacity:0.45,side:THREE.DoubleSide}), 0,0.74,-0.12, -0.28);
+  add(new THREE.SphereGeometry(0.17,8,8), new THREE.MeshPhongMaterial({color:0xd8a077,flatShading:true}), 0,0.63,0.45);
+  add(new THREE.BoxGeometry(0.42,0.16,0.3), mBody, 0,0.49,0.45);
+  // винт: кок + три лопасти + диск
+  prop = new THREE.Group();
+  prop.position.set(0,0.05,-3.6);
+  const spinner = new THREE.Mesh(new THREE.ConeGeometry(0.22,0.6,8), mDark);
+  spinner.rotation.x = -Math.PI/2; prop.add(spinner);
+  const blade=new THREE.BoxGeometry(0.16,2.9,0.05);
+  for(let k=0;k<3;k++){ const bl=new THREE.Mesh(blade,mDark); bl.rotation.z=k*2.094; prop.add(bl); }
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.45,24),
+    new THREE.MeshBasicMaterial({color:0x6a5138, transparent:true, opacity:0.14, side:THREE.DoubleSide, depthWrite:false}));
+  prop.add(disc);
+  g.add(prop);
+  }
+  // шасси
+  for(const s of [-1,1]){
+    add(new THREE.BoxGeometry(0.09,1.0,0.13), mDark, s*0.55,-0.7,-1.85, 0,0,s*-0.4);
+    const w = add(new THREE.CylinderGeometry(0.3,0.3,0.16,10), mDark, s*0.9,-1.15,-1.85);
+    w.rotation.z = Math.PI/2;
+  }
+  // опознавательные знаки: красные звёзды (ВВС РККА), круглелы, кресты
+  if(p.star){
+    const wy = p.jet?markY:(p.mono?0.43:1.5);
+    for(const s of [-1,1]){
+      const st = new THREE.Mesh(new THREE.PlaneGeometry(1.05,1.05), new THREE.MeshBasicMaterial({map:starTex(),transparent:true,depthWrite:false}));
+      st.position.set(s*markX,wy,markZ); st.rotation.x=-Math.PI/2; if(p.jet) st.scale.set(0.8,0.8,1); g.add(st);
+    }
+  }
+  if(p.roundel){
+    const mw = new THREE.MeshBasicMaterial({color:0xf2ead8});
+    const mr = new THREE.MeshBasicMaterial({color:0xb03a2a});
+    const wy = p.jet?markY:(p.mono?0.43:1.5);
+    for(const s of [-1,1]){
+      const c1 = new THREE.Mesh(new THREE.CircleGeometry(0.46,20), mw);
+      c1.position.set(s*markX,wy,markZ); c1.rotation.x = -Math.PI/2; if(p.jet) c1.scale.set(0.8,0.8,1); g.add(c1);
+      const c2 = new THREE.Mesh(new THREE.CircleGeometry(0.24,20), mr);
+      c2.position.set(s*markX,wy+0.005,markZ); c2.rotation.x = -Math.PI/2; if(p.jet) c2.scale.set(0.8,0.8,1); g.add(c2);
+    }
+  }
+  if(p.cross){
+    const mc = new THREE.MeshBasicMaterial({color:0x141414});
+    const wy = p.jet?markY:(p.mono?0.43:1.5);
+    for(const s of [-1,1]){
+      const a = new THREE.Mesh(new THREE.BoxGeometry(1.15,0.03,0.34), mc); a.position.set(s*markX,wy+0.01,markZ); if(p.jet) a.scale.set(0.8,1,0.8); g.add(a);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.34,0.03,1.15), mc); b.position.set(s*markX,wy+0.01,markZ); if(p.jet) b.scale.set(0.8,1,0.8); g.add(b);
+    }
+  }
+  // пулемёты
+  add(new THREE.CylinderGeometry(0.07,0.07,0.6,6), mDark, -0.35,0.55,-2.5, Math.PI/2);
+  add(new THREE.CylinderGeometry(0.07,0.07,0.6,6), mDark, 0.35,0.55,-2.5, Math.PI/2);
+  g.userData.prop = prop;
+  return g;
+}
+
+// красная звезда ВВС РККА (текстура-канвас, кэшируется)
+let starTexCache=null;
+function starTex(){
+  if(starTexCache) return starTexCache;
+  const c=document.createElement('canvas'); c.width=c.height=64;
+  const g=c.getContext('2d'); g.translate(32,32); g.beginPath();
+  for(let i=0;i<10;i++){ const r=i%2?12:27, a=i*Math.PI/5-Math.PI/2; g.lineTo(Math.cos(a)*r, Math.sin(a)*r); }
+  g.closePath(); g.fillStyle='#c8302a'; g.fill();
+  g.lineWidth=2.5; g.strokeStyle='#e8d8b0'; g.stroke();
+  starTexCache=new THREE.CanvasTexture(c); return starTexCache;
+}
+
+// пиксельный камуфляж (canvas-текстура 8×8 блоков + «осколки», кэш по палитре и масштабу)
+const camoTexCache={};
+function pixelCamoTex(cols,rx,ry){
+  const key=cols.join(',')+'|'+rx+'|'+ry;
+  if(camoTexCache[key]) return camoTexCache[key];
+  const c=document.createElement('canvas'); c.width=c.height=64;
+  const g=c.getContext('2d');
+  for(let y=0;y<8;y++) for(let x=0;x<8;x++){
+    // база — диагональные «осколки» (равномерно все цвета), сверху случайные вкрапления
+    let ci=(x*2+y*3)%cols.length;
+    if(Math.random()<0.35) ci=(Math.random()*cols.length)|0;
+    g.fillStyle='#'+cols[ci].toString(16).padStart(6,'0'); // числа ≠ CSS-цвет — иначе canvas чёрный
+    g.fillRect(x*8,y*8,8,8);
+  }
+  for(let i=0;i<12;i++){ // вытянутые пятна поверх сетки — «осиный» раскрой
+    g.fillStyle='#'+cols[(Math.random()*cols.length)|0].toString(16).padStart(6,'0');
+    g.fillRect(((Math.random()*8)|0)*8, ((Math.random()*8)|0)*8, 8*(1+((Math.random()*2)|0)), 8);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.magFilter=THREE.NearestFilter; t.minFilter=THREE.LinearMipmapLinearFilter;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rx,ry);
+  camoTexCache[key]=t; return t;
+}
+
+// палитры камуфляжа Су-57: сине-белый «осиный» (игрок/союзники) и красный (вражеские Су-57);
+// крылья — той же гаммой, что и фюзеляж (на закате тёмные крылья читаются чёрным)
+const S57_CAMO_B=[0x8ca6b5,0x5d7b8c,0xc7d4dc,0x415a68], S57_CAMO_W=[0x8ca6b5,0x5d7b8c,0xc7d4dc,0x415a68];
+const S57_CAMO_RB=[0x9e352a,0x7a241c,0xb44f41,0x5f1a14], S57_CAMO_RW=[0x9e352a,0x7a241c,0xb44f41,0x5f1a14];
+
+const PAL_PLAYER = {body:0x556b2f, wing:0x8f9e64, accent:0x9a4a1f, star:true, mono:false};
+const PAL_BOT    = {body:0xb02a20, wing:0xc94b3c, accent:0x801812, cross:true, mono:false};
+
+// ================= ИГРОК =================
+const player = {
+  mesh: buildPlane(PAL_PLAYER),
+  speed:55, throttle:0.65, hp:100, alive:true,
+  ammo:4, ammoT:0, cd:0, cdM:0, lastHit:99, smokeT:0,
+  flares:0, flaresMax:0, flareCd:0,
+  cobraT:0, cobraCd:0, cobraP:0, cobraSpd:0, cobraDir:V3(), // кобра Су-57: таймер, кулдаун, накопленный тангаж, скорость на входе, горизонталь траектории
+  ctrl:{p:0,r:0,y:0}, vel:V3(),
+  g:1, gPk:1, glocT:0, trailT:0,
+  pst:null, hpMax:100, meshBuilt:null
+};
+scene.add(player.mesh);
+player.pos = player.mesh.position;
+player.quat = player.mesh.quaternion;
+player.prop = player.mesh.userData.prop;
+player.pos.set(0,300,0);
+
+let PST=null; // ТТХ самолёта игрока (заполняет applyPlayerPlane)
+function applyPlayerPlane(){ // применить выбранный в ангаре самолёт (модель и ТТХ)
+  PST=planeStats(PROG.sel);
+  player.hpMax=PST.hp;
+  if(player.meshBuilt!==PST.id){
+    scene.remove(player.mesh);
+    const ppal = PST.prem // Су-57: пиксельный сине-белый камуфляж как на эталонном фото, красные звёзды
+      ? {body:0, wing:0, camoB:S57_CAMO_B, camoW:S57_CAMO_W, accent:0x36434e, star:true, mono:PST.mono, jet:PST.jet, tier:PST.tier, msl:PST.msl, prem:true}
+      : {body:0x556b2f, wing:0x8f9e64, accent:0x9a4a1f, star:true, mono:PST.mono, jet:PST.jet, tier:PST.tier, msl:PST.msl};
+    player.mesh=buildPlane(ppal);
+    scene.add(player.mesh);
+    player.pos=player.mesh.position; player.quat=player.mesh.quaternion; player.prop=player.mesh.userData.prop;
+    player.meshBuilt=PST.id;
+    player.pos.set(0,300,0);
+  }
+  player.ammo=PST.msl; player.ammoT=0; player.cdM=0; // боекомплект ракет — от ТТХ самолёта (поршневые: 0)
+  player.flaresMax=PST.jet?(PST.msl>0?6:4):0; player.flares=player.flaresMax; player.flareCd=0; // ловушки: только реактивные
+  player.cobraT=0; player.cobraCd=0; player.cobraP=0; // кобра — чистый лист при смене самолёта
+  $('missiles').innerHTML='<i></i>'.repeat(PST.msl||0);
+  $('flares').innerHTML='<i></i>'.repeat(player.flaresMax);
+}
+
+const GUNS = [V3(-0.35,0.55,-2.9), V3(0.35,0.55,-2.9)];
+
+// ================= БОТЫ =================
+const bots = [];
+function resetBot(b){
+  const bp=b.pst||planeStatsBot(PLANES.find(p=>p.tier===3)); // до первого setupTiers — ранг III
+  if(b.team==='blue'){ // ведомый: появляется в строю рядом с игроком
+    _v1.copy(FWD).applyQuaternion(player.quat); _v1.y=0; _v1.normalize();
+    _v2.set(_v1.z,0,-_v1.x); // горизонтальный перпендикуляр
+    const side=(b.slot||0)-1;
+    b.pos.copy(player.pos).addScaledVector(_v1,-rand(55,80)).addScaledVector(_v2,side*rand(45,65));
+    b.pos.y=Math.max(player.pos.y+rand(10,35), Math.max(terrainHeight(b.pos.x,b.pos.z),-2)+120);
+    b.hp=bp.hp; b.alive=true; b.mesh.visible=true; b.speed=Math.min(player.speed,bp.maxSpd*1.05);
+    b.burst=0; b.threatT=0; b.attackT=rand(1,3); b.orbitA=rand(0,Math.PI*2);
+    b.mesh.quaternion.copy(player.quat);
+    b.vel.set(0,0,0);
+    b.mslAmmo=bp.msl||0; b.mslCd=rand(5,9); b.flares=bp.jet?3:0; b.flareCd=rand(1,3); b.cobraN=bp.prem?2:0; b.cobraCd=0; // ракеты/ловушки/кобра ботов — на каждую жизнь
+    return;
+  }
+  const a=rand(0,Math.PI*2), r=rand(4000,5200); // спавн красных в 4–5.2 км от игрока
+  b.pos.set(player.pos.x+Math.cos(a)*r, 0, player.pos.z+Math.sin(a)*r);
+  b.pos.y = Math.max(player.pos.y+rand(-80,350), Math.max(terrainHeight(b.pos.x,b.pos.z),-2)+230);
+  b.hp=bp.hp; b.alive=true; b.mesh.visible=true; b.speed=rand(bp.maxSpd*0.72,bp.maxSpd*0.85);
+  b.burst=0; b.threatT=0; b.attackT=rand(0.5,2.2); b.orbitA=rand(0,Math.PI*2);
+  b.mesh.lookAt(player.pos); b.mesh.rotateY(Math.PI);
+  b.vel.set(0,0,0);
+  b.mslAmmo=bp.msl||0; b.mslCd=rand(5,9); b.flares=bp.jet?3:0; b.flareCd=rand(1,3); b.cobraN=bp.prem?2:0; b.cobraCd=0; // ракеты/ловушки/кобра ботов — на каждую жизнь
+}
+for(let i=0;i<5;i++){
+  const mesh = buildPlane(PAL_BOT);
+  scene.add(mesh);
+  const b = {mesh, prop:mesh.userData.prop, speed:50, hp:30, alive:true, team:'red',
+    name:BOT_NAMES[i], kills:0, lives:3,
+    burst:0, gunT:0, attackT:rand(0.5,2.2), threatT:0, evadeDir:V3(),
+    orbitA:rand(0,Math.PI*2), orbitDir:Math.random()<0.5?-1:1, smokeT:0, vel:V3()};
+  b.pos = mesh.position; b.quat = mesh.quaternion;
+  bots.push(b);
+  resetBot(b);
+}
+
+// союзные ведомые (синие, модель как у игрока)
+const ALLIES=[];
+for(let i=0;i<4;i++){
+  const mesh = buildPlane(PAL_PLAYER);
+  scene.add(mesh);
+  const b = {mesh, prop:mesh.userData.prop, speed:50, hp:35, alive:true, team:'blue', slot:i,
+    name:ALLY_NAMES[i], kills:0, lives:3,
+    burst:0, gunT:0, attackT:rand(0.5,2.2), threatT:0, evadeDir:V3(),
+    orbitA:rand(0,Math.PI*2), orbitDir:Math.random()<0.5?-1:1, smokeT:0, vel:V3()};
+  b.pos = mesh.position; b.quat = mesh.quaternion;
+  bots.push(b); ALLIES.push(b);
+  resetBot(b);
+}
+
+// стартовая расстановка самолётов (фон меню + первый бой) — ранг из ангара
+applyPlayerPlane();
+setupTiers();
+
+// ================= СЕТЬ: профиль (SQLite сервера) + бой 5×5 =================
+// Сервер: mini-services/wog-server — socket.io :3030 через шлюз (?XTransformPort=3030).
+// Симуляция боя (боты, ракеты, ловушки, кобра, урон, жизни, раунды, награды) — на сервере.
+// Клиент шлёт только состояние своего самолёта (15 Гц) и заявки попаданий пулями.
+const NET={
+  sock:null, authed:false, profile:null, inRoom:false,
+  myId:null, myTeam:'blue', idle:false,
+  bl:15, rl:15,
+  map:new Map(),   // netId сущности -> локальный бот-объект (рендер)
+  mmap:new Map(),  // netId ракеты -> локальная ракета (визуал)
+  slotA:[], slotB:[], // id сущностей по строкам ростера (синие без меня / красные)
+  applyProfile(p){
+    if(!p) return;
+    PROG.money=p.money|0; PROG.xp=p.xp|0;
+    PROG.owned=(p.owned&&p.owned.length)?p.owned.slice():['po2'];
+    PROG.sel=p.sel||'po2';
+    PROG.upg={}; const su=p.upg||{};
+    for(const pl of PLANES) PROG.upg[pl.id]={eng:(su[pl.id]&&su[pl.id].eng)||0,dur:(su[pl.id]&&su[pl.id].dur)||0,hdl:(su[pl.id]&&su[pl.id].hdl)||0,gun:(su[pl.id]&&su[pl.id].gun)||0};
+    PROG.prem=!!p.prem;
+    if(state==='menu'){ applyPlayerPlane(); setupTiers(); }
+    updateMenuWallet();
+  }
+};
+const NET_TOKEN_KEY='wog_token';
+const _n1=V3(), _n2=V3();
+
+function netStatus(t){ const el=$('net-status'); if(el) el.textContent=t; }
+function netMsg(t){ const el=$('net-msg'); if(el) el.textContent=t||''; }
+function netShowAuth(auth){ $('net-auth').style.display=auth?'block':'none'; $('net-user').style.display=auth?'none':'block'; }
+function netPilotLine(){
+  const pr=NET.profile||{};
+  const pl=PLANES.find(x=>x.id===PROG.sel)||PLANES[0];
+  $('net-pilot').textContent='Пилот: '+pr.nick+' · '+pl.name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
+}
+function netTokenGet(){ try{ return localStorage.getItem(NET_TOKEN_KEY)||''; }catch(e){ return ''; } }
+function netTokenSet(t){ try{ localStorage.setItem(NET_TOKEN_KEY,t); }catch(e){} }
+function netTokenClear(){ try{ localStorage.removeItem(NET_TOKEN_KEY); }catch(e){} }
+function netAuthed(profile){
+  NET.authed=true; NET.profile=profile;
+  NET.applyProfile(profile);
+  netShowAuth(false); netPilotLine();
+}
+function netConnect(){
+  if(typeof io!=='function'){ netStatus('нет библиотеки сети'); return; }
+  if(location.protocol!=='http:'&&location.protocol!=='https:'){ netStatus('локальный файл — сеть недоступна'); return; }
+  netStatus('подключение…');
+  const sock=io('/?XTransformPort=3030',{path:'/',transports:['websocket','polling'],reconnection:true,reconnectionDelay:1500});
+  NET.sock=sock;
+  sock.on('connect', ()=>{
+    netStatus('сеть: онлайн'); netMsg('');
+    const tk=netTokenGet();
+    if(tk&&!NET.authed) sock.emit('auth:token',{token:tk},r=>{
+      if(r&&r.ok) netAuthed(r.profile); else netTokenClear();
+    });
+  });
+  sock.on('disconnect', ()=>{ netStatus('связь потеряна'); if(NET.inRoom) netLeaveLocal(true); });
+  sock.on('connect_error', ()=>{ netStatus('нет связи с сервером'); });
+  sock.on('lobby', d=>{ const el=$('net-online'); if(el&&d) el.textContent='В небе: '+(d.room|0)+' / 10 пилотов · онлайн: '+(d.online|0); });
+  sock.on('profile', d=>{ if(d&&d.profile&&NET.authed){ NET.applyProfile(d.profile); netPilotLine(); } });
+  sock.on('ents', d=>{ if(!NET.inRoom||!d) return; NET.bl=d.bl|0; NET.rl=d.rl|0; netRemap(d.list); });
+  sock.on('snap', onSnap);
+  sock.on('b', d=>{ // чужой трассер — только визуал, урон считает сервер
+    if(!NET.inRoom||!d||!Array.isArray(d.o)||!Array.isArray(d.d)) return;
+    spawnBullet(_n1.set(d.o[0],d.o[1],d.o[2]), _n2.set(d.d[0],d.d[1],d.d[2]).normalize(), d.v||430, d.team, 'remote');
+  });
+  sock.on('hitfx', d=>{ // искры на чужой цели
+    if(!NET.inRoom||!d) return;
+    _n1.set(d.x,d.y,d.z);
+    if(_n1.distanceToSquared(player.pos)>3600*3600) return;
+    for(let i=0;i<3;i++) spawnPart(fireTex,_n1,_n2.set(rand(-6,6),rand(-6,6),rand(-6,6)),0.25,2.2,1,1,2,0);
+    AudioSys.clack();
+  });
+  sock.on('mslS', d=>{
+    if(!NET.inRoom||!d||!d.id) return;
+    const om=d.cid?missiles.find(x=>x.cid===d.cid):null;
+    if(om){ // привязка оптимистичной своей ракеты к серверной
+      om.net=true; om.netId=d.id; om.netP=V3(d.pos[0],d.pos[1],d.pos[2]);
+      if(!NET.mmap.has(d.id)) NET.mmap.set(d.id,om);
+      return;
+    }
+    if(NET.mmap.has(d.id)) return;
+    netMissileAdd({id:d.id,tid:d.tid,team:d.team,pos:d.pos,dir:d.dir},false);
+  });
+  sock.on('mslB', d=>{
+    if(!NET.inRoom||!d) return;
+    const m=NET.mmap.get(d.id);
+    if(m) netMissileRemove(m,true,V3(d.x,d.y,d.z));
+    else explosion(_n1.set(d.x,d.y,d.z),1.7);
+  });
+  sock.on('killed', d=>{
+    if(!NET.inRoom||!d) return;
+    NET.bl=d.bl|0; NET.rl=d.rl|0;
+    if(d.id===NET.myId){
+      playerLives=d.lives|0;
+      if(player.alive){ // сервер подтвердил гибель (клиент мог не увидеть сам)
+        player.alive=false; player.mesh.visible=false;
+        explosion(player.pos,2.8);
+        mouseDown=false; mAccX=0; mAccY=0; mFltX=0; mFltY=0;
+        state='dead'; deathT=0; deadShown=true; lockTarget=null;
+      }
+      toast(playerLives>0?'Возрождение через несколько секунд…':'Жизни кончились — смотрим до конца раунда');
+      if(playerLives<=0) setTimeout(()=>{ if(NET.inRoom&&state==='dead') netDeathScreen(); },1400);
+      return;
+    }
+    const b=NET.map.get(d.id); if(!b) return;
+    b.alive=false; b.mesh.visible=false;
+    explosion(b.pos,2.1);
+    if(d.by===NET.myId){
+      pKills++;
+      toast(['Цель уничтожена!','Сбит! Отличная работа!','Есть один!','Цель поражена!'][pKills%4]);
+    } else if(d.byName){
+      toast(b.team===NET.myTeam?('Наш сбит: '+b.name+' — сбил '+d.byName):(d.byName+' сбил: '+b.name));
+    }
+    netUpdateRosterLive();
+  });
+  sock.on('hit', d=>{ // серверный урон по мне — hp authoritative на сервере
+    if(!NET.inRoom||!d||d.tid!==NET.myId) return;
+    player.hp=Math.max(0,d.hp|0);
+    dmgA=0.65; camShake=Math.min(1.2,camShake+0.25); AudioSys.hit();
+  });
+  sock.on('respawn', d=>{
+    if(!NET.inRoom||!d) return;
+    if(d.id===NET.myId){
+      player.pos.set(d.p[0],d.p[1],d.p[2]);
+      player.quat.set(d.q[0],d.q[1],d.q[2],d.q[3]);
+      player.speed=d.spd||Math.round(PST.maxSpd*0.65); player.throttle=0.65;
+      player.hp=Math.max(1,d.hp|0); player.alive=true; player.mesh.visible=true;
+      player.ammo=PST.msl; player.ammoT=0; player.cdM=0; player.cd=0; player.lastHit=99; player.smokeT=0;
+      player.flares=player.flaresMax; player.flareCd=0;
+      player.cobraT=0; player.cobraCd=0; player.cobraP=0;
+      player.g=1; player.glocT=0; player.gPk=1; player.trailT=0;
+      playerLives=d.lives|0;
+      mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null;
+      camQ.copy(player.quat); camInit=false; camShake=0; dmgA=0;
+      state='play'; deadShown=false; deathT=0; lockTarget=null;
+      $('ov-death').classList.add('hidden');
+      $('hud').classList.add('on');
+      toast('Возрождение! Осталось жизней: '+playerLives);
+      tryLock();
+    } else {
+      const b=NET.map.get(d.id); if(!b) return;
+      b.netP.set(d.p[0],d.p[1],d.p[2]);
+      b.netQ.set(d.q[0],d.q[1],d.q[2],d.q[3]);
+      b.netSpd=d.spd||60;
+      b.alive=true; b.lives=d.lives|0; b.netHpF=1;
+      if(b.netFresh){ b.pos.copy(b.netP); b.quat.copy(b.netQ); b.netFresh=false; }
+    }
+  });
+  sock.on('round', d=>{
+    if(!NET.inRoom||!d) return;
+    NET.bl=d.bl|0; NET.rl=d.rl|0;
+    pKills=0; battlePay={money:0,xp:0};
+    $('ov-victory').classList.add('hidden'); $('ov-death').classList.add('hidden');
+    if(state==='win'||state==='dead'){
+      state='play'; deadShown=false; deathT=0;
+      $('hud').classList.add('on');
+    }
+  });
+  sock.on('roundEnd', d=>{
+    if(!NET.inRoom||!d) return;
+    if(d.profile) NET.applyProfile(d.profile);
+    const win=d.winner===NET.myTeam;
+    const pm=d.pay?d.pay.money:0, px=d.pay?d.pay.xp:0;
+    state='win';
+    $('hud').classList.remove('on');
+    if(document.pointerLockElement) document.exitPointerLock();
+    if(win){
+      $('victory-kills').textContent=pKills;
+      $('victory-pay').textContent='Заработано: '+pm.toLocaleString('ru-RU')+' ₽ · +'+px+' опыта';
+      $('ov-victory').classList.remove('hidden');
+    } else {
+      $('death-title').textContent='ПОРАЖЕНИЕ';
+      $('death-kills').textContent=pKills;
+      $('death-pay').textContent='Заработано: '+pm.toLocaleString('ru-RU')+' ₽ · +'+px+' опыта';
+      $('death-by').textContent=d.winner==='blue'?'Победили синие':'Победили красные';
+      $('ov-death').classList.remove('hidden');
+    }
+    netPilotLine();
+  });
+  sock.on('flare', d=>{ // чужие ловушки — визуал; свои уже показаны локально
+    if(!NET.inRoom||!d) return;
+    if(d.id===NET.myId) return;
+    const b=NET.map.get(d.id);
+    if(b&&b.alive) ejectFlares(b.pos,b.quat,3);
+  });
+  sock.on('msg', d=>{
+    if(!NET.inRoom||!d||!d.text) return;
+    if(d.team&&d.team!==NET.myTeam) return;
+    toast(d.text);
+  });
+}
+
+// ---- карта сущностей -> локальные бот-объекты ----
+function netAssignPlane(b, planeId){ // точный самолёт сущности (у сервера свой выбор внутри ранга)
+  const pl=PLANES.find(p=>p.id===planeId)||PLANES[0];
+  b.pst={id:pl.id,name:pl.name,tier:pl.tier,mono:pl.mono,jet:!!pl.jet,msl:pl.msl||0,prem:!!pl.prem,
+    maxSpd:pl.maxSpd,minSpd:pl.minSpd,turn:pl.turn,climb:pl.climb,dmg:pl.dmg,hp:pl.hp};
+  const key=pl.id+':'+b.team;
+  if(b.planeBuilt!==key){
+    scene.remove(b.mesh);
+    const base={mono:pl.mono, jet:pl.jet, tier:pl.tier, msl:pl.msl||0, prem:pl.prem||false};
+    const pal = b.team==='blue'
+      ? (pl.prem ? {body:0,wing:0,camoB:S57_CAMO_B,camoW:S57_CAMO_W,accent:0x36434e,star:true,...base}
+                 : {body:0x4a5d3a, wing:0x76854e, accent:0x9a4a1f, star:true, ...base})
+      : (pl.prem ? {body:0,wing:0,camoB:S57_CAMO_RB,camoW:S57_CAMO_RW,accent:0x4a120d,cross:true,...base}
+                 : {body:0xb02a20, wing:0xc94b3c, accent:0x801812, cross:true, ...base});
+    b.mesh=buildPlane(pal); scene.add(b.mesh);
+    b.pos=b.mesh.position; b.quat=b.mesh.quaternion; b.prop=b.mesh.userData.prop;
+    b.planeBuilt=key;
+  }
+  b.mesh.visible=false; // до первого снапа
+}
+function netRemap(list){
+  if(!list) return;
+  const want=list.filter(e=>e&&e.id!==NET.myId);
+  for(const [id,b] of Array.from(NET.map)){
+    if(!want.some(e=>e.id===id)){
+      b.net=false; b.netId=null; b.mesh.visible=false;
+      NET.map.delete(id);
+    }
+  }
+  const free=bots.filter(b=>!b.netId);
+  for(const e of want){
+    let b=NET.map.get(e.id);
+    if(!b){
+      b=free.shift(); if(!b) break;
+      b.net=true; b.netId=e.id;
+      b.netFresh=true; b.netP=V3(); b.netQ=new THREE.Quaternion(); b.netSpd=60; b.netHpF=1; b.smokeT=0; b.trailT=0;
+      NET.map.set(e.id,b);
+    }
+    b.team=e.team; b.name=e.name; b.kind=e.kind||'bot';
+    b.lives=e.lives|0; b.kills=e.kills|0; b.alive=!!e.alive;
+    netAssignPlane(b, e.planeId);
+  }
+  netUpdateRoster(list);
+}
+function netUpdateRoster(list){
+  if(!list) return;
+  // люди — в приоритете строк ростера (бота можно обрезать, живого пилота — нет);
+  // массив ents на сервере заканчивается людьми (push в конец) — без сортировки ник выпадал бы
+  const pick=(team, cap)=>{
+    const all=list.filter(e=>e&&e.team===team&&(team!=='blue'||e.id!==NET.myId));
+    const humans=all.filter(e=>e.kind==='human'), botsE=all.filter(e=>e.kind!=='human');
+    return humans.concat(botsE).slice(0,cap);
+  };
+  NET.slotA.length=0; NET.slotB.length=0;
+  for(const e of pick('blue',4)){
+    const i=NET.slotA.length;
+    NET.slotA.push(e.id);
+    elRrA[i].firstElementChild.textContent=e.name;
+    elRrA[i].classList.toggle('me', e.kind==='human');
+  }
+  for(const e of pick('red',5)){
+    const i=NET.slotB.length;
+    NET.slotB.push(e.id);
+    elRrB[i].firstElementChild.textContent=e.name;
+    elRrB[i].classList.toggle('me', e.kind==='human');
+  }
+  netUpdateRosterLive();
+}
+function netUpdateRosterLive(){
+  for(let i=0;i<4;i++){
+    const b=NET.map.get(NET.slotA[i]); if(!b) continue;
+    elRkA[i].textContent=b.kills|0;
+    elRrA[i].classList.toggle('dead',!b.alive);
+  }
+  for(let i=0;i<5;i++){
+    const b=NET.map.get(NET.slotB[i]); if(!b) continue;
+    elRkB[i].textContent=b.kills|0;
+    elRrB[i].classList.toggle('dead',!b.alive);
+  }
+}
+
+// ---- снапшот: 15 Гц, экстраполяция + подтяжка на кадре (netStep*) ----
+function onSnap(d){
+  if(!NET.inRoom||!d) return;
+  NET.bl=d.bl|0; NET.rl=d.rl|0;
+  for(const r of d.e){
+    const id=r[0];
+    if(id===NET.myId) continue; // своё состояние клиент знает сам
+    const b=NET.map.get(id); if(!b) continue;
+    b.netP.set(r[1],r[2],r[3]);
+    b.netQ.set(r[4],r[5],r[6],r[7]);
+    b.netSpd=r[8]|0;
+    const wasAlive=b.alive;
+    b.alive=!!r[9]; b.netHpF=r[10]; b.kills=r[11]|0;
+    if(b.netFresh){ b.pos.copy(b.netP); b.quat.copy(b.netQ); b.netFresh=false; }
+    if(wasAlive&&!b.alive) b.mesh.visible=false; // взрыв пришлёт 'killed'
+  }
+  const seen=new Set();
+  for(const r of d.m){
+    const id=r[0]; seen.add(id);
+    let m=NET.mmap.get(id);
+    if(!m) m=netMissileAdd({id:id,tid:r[7],pos:[r[1],r[2],r[3]],dir:[r[4],r[5],r[6]]},true);
+    else{ m.netP.set(r[1],r[2],r[3]); m.dir.set(r[4],r[5],r[6]).normalize(); }
+  }
+  for(const [,m] of Array.from(NET.mmap)){
+    if(!seen.has(m.netId)) netMissileRemove(m,false);
+  }
+  netUpdateRosterLive();
+}
+
+// ---- сетевые ракеты: чистый визуал, симуляция на сервере ----
+function buildMissileMesh(){ // общий меш ракеты для офлайна и сети (фабрика spawnMissile тоже использует)
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(misGeoBody,misMat); body.rotation.x=Math.PI/2; g.add(body);
+  const nose=new THREE.Mesh(misGeoNose,misMat); nose.rotation.x=-Math.PI/2; nose.position.z=-0.72; g.add(nose);
+  for(let i=0;i<4;i++){
+    const f=new THREE.Mesh(misGeoFin,misMat);
+    const a=i*Math.PI/2;
+    f.position.set(Math.sin(a)*0.15, Math.cos(a)*0.15, 0.5);
+    f.rotation.z=a;
+    g.add(f);
+  }
+  const fl=new THREE.Sprite(new THREE.SpriteMaterial({map:flameTex, transparent:true, depthWrite:false, fog:false}));
+  fl.position.z=0.95; fl.scale.setScalar(1.1);
+  g.add(fl);
+  return {mesh:g, flame:fl};
+}
+function netMissileAdd(d, silent){
+  if(NET.mmap.has(d.id)) return NET.mmap.get(d.id);
+  const mm=buildMissileMesh();
+  const m={mesh:mm.mesh, flame:mm.flame, dir:V3(d.dir[0],d.dir[1],d.dir[2]).normalize(),
+    speed:(d.team===NET.myTeam?380:300), target:null, life:14, trailT:0, team:d.team, shooter:null,
+    net:true, netId:d.id, netP:V3(d.pos[0],d.pos[1],d.pos[2])};
+  m.mesh.position.copy(m.netP);
+  m.mesh.quaternion.setFromUnitVectors(FWD,m.dir);
+  if(d.tid===NET.myId) m.target=player; // предупреждение «РАКЕТА» работает как офлайн
+  else if(d.tid){ const tb=NET.map.get(d.tid); if(tb) m.target=tb; }
+  if(!silent){
+    if(m.target===player&&player.alive){
+      toast('ПУСК РАКЕТЫ! Тепловые ловушки — G');
+      AudioSys.beep(1150,0.3,0.28);
+    } else {
+      const d2p=m.netP.distanceTo(player.pos);
+      AudioSys.burst(0.7,800,0.9,clamp(0.4-d2p*0.00022,0.06,0.4));
+    }
+  }
+  scene.add(m.mesh); missiles.push(m);
+  NET.mmap.set(d.id,m);
+  return m;
+}
+function netMissileRemove(m, boom, at){
+  if(m.netId) NET.mmap.delete(m.netId);
+  const i=missiles.indexOf(m);
+  if(i>=0) missiles.splice(i,1);
+  if(boom) explosion(at||m.mesh.position,1.7);
+  m.mesh.visible=false;
+  scene.remove(m.mesh);
+}
+function netStepMissile(m,dt){
+  m.life-=dt;
+  if(!m.netP){ // своя ракета до привязки к серверной: честный свободный полёт
+    m.mesh.position.addScaledVector(m.dir,m.speed*dt);
+    m.mesh.quaternion.setFromUnitVectors(FWD,m.dir);
+    m.flame.material.rotation=rand(0,6.28); m.flame.scale.setScalar(rand(0.9,1.5));
+    return;
+  }
+  m.mesh.position.addScaledVector(m.dir,(m.team===NET.myTeam?380:300)*dt);
+  const k=1-Math.exp(-dt*8);
+  m.mesh.position.lerp(m.netP,k);
+  m.mesh.quaternion.setFromUnitVectors(FWD,m.dir);
+  m.flame.material.rotation=rand(0,6.28); m.flame.scale.setScalar(rand(0.9,1.5));
+  m.trailT-=dt;
+  if(m.trailT<=0){
+    m.trailT=0.028;
+    spawnPart(smokeTex,m.mesh.position,_n1.set(rand(-1,1),rand(-1,1),rand(-1,1)),1.5,1.6,2.6,0.5,1,1.5);
+  }
+}
+function netStepBot(b,dt){
+  if(b.netFresh){ b.mesh.visible=false; return; }
+  _n1.copy(FWD).applyQuaternion(b.quat);
+  b.pos.addScaledVector(_n1,b.netSpd*dt);
+  const k=1-Math.exp(-dt*6);
+  b.pos.lerp(b.netP,k);
+  b.quat.slerp(b.netQ,k);
+  b.vel.copy(_n1).multiplyScalar(b.netSpd);
+  b.mesh.visible=b.alive;
+  if(b.prop) b.prop.rotation.z+=(4+b.netSpd*0.32)*dt;
+  const ab=b.mesh.userData.ab;
+  if(ab&&b.pst&&b.pst.jet) for(const f of ab){ f.material.opacity=0.3+Math.random()*0.25; f.scale.y=0.9+Math.random()*0.4; }
+  if(b.alive&&b.netHpF<0.5){ // дым сильноповреждённых
+    b.smokeT-=dt;
+    if(b.smokeT<=0){
+      b.smokeT=0.12;
+      _n2.set(0,0.4,-3).applyQuaternion(b.quat).add(b.pos);
+      spawnPart(smokeTex,_n2,_n1.set(rand(-2,2),rand(0,3),rand(-2,2)),1.1,2.5,2,0.6,1,2);
+    }
+  }
+}
+
+// ---- вход в бой / выход ----
+function netJoin(){
+  if(!NET.sock||NET.inRoom) return;
+  if(!NET.authed){ netMsg('Сначала войдите в профиль'); return; }
+  netMsg('');
+  NET.sock.emit('join',{},r=>{
+    if(!r||!r.ok){ netMsg((r&&r.err)||'Не удалось войти в небо'); return; }
+    NET.inRoom=true; NET.myId=r.you.id; NET.myTeam=r.you.team; NET.idle=false;
+    NET.bl=r.bl|0; NET.rl=r.rl|0;
+    pKills=0; playerLives=r.you.lives|0; battlePay={money:0,xp:0};
+    kills=0; blueLives=15;
+    netRemap(r.list);
+    for(const ms of (r.msls||[])) netMissileAdd({id:ms.id,tid:ms.tid,team:ms.team,pos:ms.pos,dir:ms.dir},true);
+    player.pos.set(r.you.pos[0],r.you.pos[1],r.you.pos[2]);
+    player.quat.set(r.you.q[0],r.you.q[1],r.you.q[2],r.you.q[3]);
+    player.speed=Math.round(PST.maxSpd*0.65); player.throttle=0.65;
+    player.hp=PST.hp; player.alive=true; player.mesh.visible=true;
+    player.ammo=PST.msl; player.ammoT=0; player.cdM=0; player.cd=0; player.lastHit=99; player.smokeT=0;
+    player.flares=player.flaresMax; player.flareCd=0;
+    player.cobraT=0; player.cobraCd=0; player.cobraP=0;
+    player.g=1; player.glocT=0; player.gPk=1; player.trailT=0;
+    camQ.copy(player.quat); camInit=false;
+    camShake=0; dmgA=0; lockTarget=null; deadShown=false; deathT=0; lastKiller=null;
+    warnFlags={}; respawnQ.length=0;
+    mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null; mouseDown=false; zoomHeld=false;
+    state='play';
+    $('ov-start').classList.add('hidden'); $('sun-egg').style.display='none';
+    $('ov-hangar').classList.add('hidden'); $('ov-death').classList.add('hidden'); $('ov-victory').classList.add('hidden');
+    $('hud').classList.add('on');
+    netUpdateRosterLive();
+    toast('Сетевой бой! Вы в команде '+(NET.myTeam==='blue'?'СИНИХ':'КРАСНЫХ'));
+    AudioSys.init(); tryLock();
+  });
+}
+function netDeathScreen(){
+  $('death-title').textContent='ЖИЗНИ КОНЧИЛИСЬ';
+  $('death-kills').textContent=pKills;
+  $('death-pay').textContent='Награда придёт по итогам раунда';
+  $('death-by').textContent='Наблюдайте за боем или вернитесь в меню';
+  $('ov-death').classList.remove('hidden');
+  $('hud').classList.remove('on');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function netLeaveLocal(silent){
+  try{ if(NET.sock) NET.sock.emit('leave'); }catch(e){}
+  NET.inRoom=false; NET.myId=null; NET.myTeam='blue'; NET.idle=false;
+  for(const [,b] of Array.from(NET.map)){ b.net=false; b.netId=null; b.mesh.visible=false; }
+  NET.map.clear();
+  for(const [,m] of Array.from(NET.mmap)) netMissileRemove(m,false);
+  NET.mmap.clear();
+  bots.forEach((b,i)=>{ b.team=i<5?'red':'blue'; }); // вернуть офлайн-состав команд
+  ALLIES.forEach(b=>{ b.team='blue'; });
+  setupTiers();
+  for(const b of bots){ b.lives=3; resetBot(b); }
+  const AN=['Сокол','Стрела','Клим','Тайфун'], BN=['Барон','Факел','Гриф','Ворон','Шторм'];
+  for(let i=0;i<4;i++){ elRrA[i].firstElementChild.textContent=AN[i]; elRrA[i].classList.remove('me','dead'); elRkA[i].textContent='0'; }
+  for(let i=0;i<5;i++){ elRrB[i].firstElementChild.textContent=BN[i]; elRrB[i].classList.remove('me','dead'); elRkB[i].textContent='0'; }
+  playerLives=3; blueLives=15; kills=0; pKills=0;
+  returnToMenu();
+  if(!silent) toast('Вы покинули сетевой бой');
+}
+function netLeave(){ if(NET.inRoom) netLeaveLocal(); }
+
+// ---- авторизация: UI ----
+$('btn-net-login').addEventListener('click', ()=>{
+  if(!NET.sock) return;
+  netMsg('');
+  NET.sock.emit('auth:login',{nick:$('net-nick').value,pass:$('net-pass').value},r=>{
+    if(r&&r.ok){ netTokenSet(r.token); netAuthed(r.profile); toast('С возвращением, '+r.profile.nick+'!'); }
+    else netMsg((r&&r.err)||'Ошибка входа');
+  });
+});
+$('btn-net-reg').addEventListener('click', ()=>{
+  if(!NET.sock) return;
+  netMsg('');
+  NET.sock.emit('auth:register',{nick:$('net-nick').value,pass:$('net-pass').value},r=>{
+    if(r&&r.ok){ netTokenSet(r.token); netAuthed(r.profile); toast('Профиль создан: '+r.profile.nick+' — прогресс хранится на сервере'); }
+    else netMsg((r&&r.err)||'Ошибка регистрации');
+  });
+});
+$('btn-net-logout').addEventListener('click', ()=>{
+  if(NET.inRoom) netLeave();
+  NET.authed=false; NET.profile=null; netTokenClear();
+  loadProg(); // обратно к локальному кошельку
+  applyPlayerPlane(); setupTiers(); updateMenuWallet();
+  netShowAuth(true); netMsg('');
+  toast('Профиль отключён — играете офлайн');
+});
+$('btn-net-join').addEventListener('click', netJoin);
+for(const nid of ['net-nick','net-pass']){ // Enter в полях не запускает офлайновый бой
+  const el=document.getElementById(nid);
+  if(el) el.addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Enter') $('btn-net-login').click(); });
+}
+
+// ---- отправка своего состояния: 15 Гц ----
+setInterval(()=>{
+  if(!NET.inRoom||!NET.sock||!NET.sock.connected) return;
+  if(state!=='play'||!player.alive||NET.idle) return;
+  NET.sock.emit('s',{
+    p:[+player.pos.x.toFixed(1),+player.pos.y.toFixed(1),+player.pos.z.toFixed(1)],
+    q:[+player.quat.x.toFixed(3),+player.quat.y.toFixed(3),+player.quat.z.toFixed(3),+player.quat.w.toFixed(3)],
+    v:[+player.vel.x.toFixed(1),+player.vel.y.toFixed(1),+player.vel.z.toFixed(1)],
+    spd:Math.round(player.speed)
+  });
+},66);
+netConnect();
+
+// ================= ВВОД =================
+const keys={};
+let mouseDown=false, zoomHeld=false;
+let mAccX=0, mAccY=0, mFltX=0, mFltY=0, lastMX=null, lastMY=null, lockBroken=false;
+const canvasEl=renderer.domElement;
+function tryLock(){
+  if(lockBroken||document.pointerLockElement===canvasEl) return;
+  try{
+    const p=canvasEl.requestPointerLock();
+    if(p&&p.catch) p.catch(()=>{ lockBroken=true; });
+  }catch(err){ lockBroken=true; }
+}
+window.addEventListener('keydown', e=>{
+  if(e.code==='Space') e.preventDefault();
+  AudioSys.init();
+  keys[e.code]=true;
+  if(e.repeat) return;
+  if(e.code==='KeyB'){ camFP=!camFP; toast(camFP?'Вид из кабины':'Вид сзади'); }
+  else if(e.code==='KeyM') AudioSys.toggleMute();
+  else if(e.code==='Space' && state==='play') fireMissile(); // реактивные ранги: пуск ракеты
+  else if(e.code==='KeyG' && state==='play') deployFlares(); // тепловые ловушки — отвод ракет
+  else if(e.code==='KeyC' && state==='play') tryCobra(); // кобра Су-57 — срыв захвата ракет
+  else if(e.code==='KeyR' && (state==='play'||state==='dead')){ if(NET.inRoom) toast('Сетевой бой: выход через паузу (Esc)'); else restart(); }
+  else if(e.code==='Escape'&&document.getElementById('ov-code')&&!document.getElementById('ov-code').classList.contains('hidden')) closeCodeModal();
+  else if(e.code==='Escape'||e.code==='KeyP') togglePause();
+  else if(e.code==='Enter' && state==='menu') startGame();
+  else if(e.code==='Enter' && state==='dead'){ if(NET.inRoom) toast('Сетевой бой: ждём возрождения от сервера'); else restart(); }
+});
+window.addEventListener('keyup', e=>{ keys[e.code]=false; });
+window.addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; mouseDown=false; zoomHeld=false; mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null; });
+window.addEventListener('mousedown', e=>{
+  AudioSys.init();
+  if(e.button===0){
+    // первый клик в бою — захват мыши (не стреляем)
+    if(state==='play'&&player.alive&&!lockBroken&&document.pointerLockElement!==canvasEl){ tryLock(); return; }
+    mouseDown=true;
+  }
+  if(e.button===2) zoomHeld=true;
+});
+window.addEventListener('mousemove', e=>{
+  if(state!=='play'||!player.alive) return;
+  if(document.pointerLockElement===canvasEl){ // основной режим: захват курсора
+    mAccX+=e.movementX||0; mAccY+=e.movementY||0;
+  } else { // фолбэк: дельты по позиции курсора
+    if(lastMX!==null){ mAccX+=e.clientX-lastMX; mAccY+=e.clientY-lastMY; }
+    lastMX=e.clientX; lastMY=e.clientY;
+  }
+  mAccX=clamp(mAccX,-160,160); mAccY=clamp(mAccY,-160,160); // жёсткое ограничение накопления — рывок мыши не закручивает самолёт (коэф. снижены, лимит поднят пропорционально)
+});
+document.addEventListener('pointerlockchange', ()=>{
+  lastMX=null; lastMY=null;
+  if(document.pointerLockElement!==canvasEl && state==='play' && player.alive) togglePause(); // Esc при захвате — пауза
+});
+document.addEventListener('pointerlockerror', ()=>{ lockBroken=true; toast('Мышь: обычный режим (без захвата курсора)'); });
+window.addEventListener('mouseup', e=>{
+  if(e.button===0) mouseDown=false;
+  if(e.button===2) zoomHeld=false;
+});
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ================= ЗВУК (WebAudio, генерируется на лету) =================
+const AudioSys = {
+  ctx:null, master:null, engGain:null, eng1:null, eng2:null, engF:null, noiseBuf:null, muted:false,
+  init(){
+    if(this.ctx) return;
+    try{
+      const C = window.AudioContext||window.webkitAudioContext;
+      if(!C) return;
+      this.ctx = new C();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.32;
+      this.master.connect(this.ctx.destination);
+      const len = this.ctx.sampleRate;
+      const buf = this.ctx.createBuffer(1,len,this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+      this.noiseBuf = buf;
+      const f = this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=340; f.Q.value=2;
+      this.engGain = this.ctx.createGain(); this.engGain.gain.value=0;
+      this.eng1 = this.ctx.createOscillator(); this.eng1.type='sawtooth'; this.eng1.frequency.value=60;
+      this.eng2 = this.ctx.createOscillator(); this.eng2.type='square'; this.eng2.frequency.value=62;
+      this.eng1.connect(f); this.eng2.connect(f);
+      f.connect(this.engGain); this.engGain.connect(this.master);
+      this.eng1.start(); this.eng2.start();
+      this.engF = f;
+    }catch(e){}
+  },
+  engine(on, speed, thr, g){
+    if(!this.ctx) return;
+    const t=this.ctx.currentTime;
+    const fq = 40 + speed*0.5 + thr*22;
+    this.eng1.frequency.setTargetAtTime(fq, t, 0.12);
+    this.eng2.frequency.setTargetAtTime(fq*1.007+2, t, 0.12);
+    this.engGain.gain.setTargetAtTime(on ? 0.05+thr*0.05 : 0, t, 0.25);
+    if(this.engF){ // при высокой перегрузке двигатель становится глухим
+      const muf = 1-clamp(((g||1)-9)/3,0,0.55);
+      this.engF.frequency.setTargetAtTime(340*muf, t, 0.15);
+    }
+  },
+  burst(dur, freq, q, vol, type){
+    if(!this.ctx) return;
+    try{
+      const t=this.ctx.currentTime;
+      const src=this.ctx.createBufferSource(); src.buffer=this.noiseBuf; src.loop=true;
+      const f=this.ctx.createBiquadFilter(); f.type=type||'bandpass'; f.frequency.value=freq; f.Q.value=q;
+      const g=this.ctx.createGain();
+      g.gain.setValueAtTime(vol,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start(t); src.stop(t+dur+0.05);
+    }catch(e){}
+  },
+  gun(){ this.burst(0.08, 1400+Math.random()*500, 1.1, 0.5); },
+  botGun(d){ this.burst(0.07, 900, 1.2, clamp(0.35-d*0.0004,0.03,0.3)); },
+  boom(d){
+    this.burst(0.9, 200, 0.6, clamp(1.0-d*0.0008,0.05,0.9),'lowpass');
+    this.burst(0.25, 900, 0.8, clamp(0.4-d*0.0004,0.02,0.35),'lowpass');
+  },
+  hit(){ this.burst(0.12, 600, 2.5, 0.45); },
+  clack(){ this.burst(0.06, 2400, 3, 0.22); },
+  missileS(){ this.burst(0.7, 800, 0.9, 0.4); },
+  flareS(){ this.burst(0.45, 2600, 0.8, 0.28,'highpass'); this.burst(0.3, 850, 1.1, 0.2); }, // шипение ловушек
+  beep(f,dur,vol){ // пискатор предупреждения о ракете
+    if(!this.ctx) return;
+    try{
+      const t=this.ctx.currentTime;
+      const o=this.ctx.createOscillator(); o.type='square'; o.frequency.value=f;
+      const g=this.ctx.createGain();
+      g.gain.setValueAtTime(vol,t);
+      g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+      o.connect(g); g.connect(this.master);
+      o.start(t); o.stop(t+dur+0.02);
+    }catch(e){}
+  },
+  toggleMute(){
+    this.muted=!this.muted;
+    if(this.master) this.master.gain.value = this.muted?0:0.32;
+    toast(this.muted?'Звук выключен':'Звук включён');
+  }
+};
+
+function toast(t){
+  const box=$('msg');
+  const d=document.createElement('div');
+  d.className='toast'; d.textContent=t;
+  box.appendChild(d);
+  setTimeout(()=>d.remove(),3000);
+  while(box.children.length>4) box.firstChild.remove();
+}
+
+// ================= СОСТОЯНИЕ ИГРЫ =================
+let state='menu', time=0, kills=0, pKills=0, playerLives=3, blueLives=15, camShake=0, dmgA=0; // kills — общий счёт команды (победа/красная полоска), pKills — личный счёт игрока; blueLives — все жизни синих (5×3)
+let lockTarget=null, respawnQ=[], warnFlags={};
+let mslBeepT=0; // таймер пискатора предупреждения о ракете
+let deathT=0, deadShown=false, lastKiller=null;
+
+// ================= ЧАСТИЦЫ =================
+const fireTex  = radialTex([[0,'rgba(255,240,200,1)'],[0.3,'rgba(255,180,80,0.9)'],[0.7,'rgba(255,90,30,0.35)'],[1,'rgba(255,60,20,0)']],128);
+const smokeTex = radialTex([[0,'rgba(70,60,58,0.55)'],[0.7,'rgba(60,52,50,0.28)'],[1,'rgba(60,52,50,0)']],128);
+const trailTex = radialTex([[0,'rgba(255,255,255,0.85)'],[0.5,'rgba(255,255,255,0.4)'],[1,'rgba(255,255,255,0)']],64); // инверсионный след
+const flameTex = radialTex([[0,'rgba(255,250,220,1)'],[0.4,'rgba(255,170,60,0.9)'],[1,'rgba(255,80,20,0)']],64);
+const parts=[];
+function spawnPart(tex,pos,vel,life,size,grow,op,drag,buoy){
+  let p=null;
+  for(const q of parts) if(!q.on){ p=q; break; }
+  if(!p){
+    if(parts.length>=320) return;
+    p={spr:new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthWrite:false,fog:false})),
+       on:false, vel:V3(), life:0, max:1, size:1, grow:1, op:1, drag:1, buoy:0};
+    scene.add(p.spr); parts.push(p);
+  }
+  p.on=true; p.spr.visible=true;
+  p.spr.material.map=tex; p.spr.material.opacity=op;
+  p.spr.position.copy(pos);
+  p.vel.copy(vel);
+  p.life=life; p.max=life; p.size=size; p.grow=grow; p.op=op; p.drag=drag; p.buoy=buoy;
+  p.spr.scale.setScalar(size);
+}
+function updateParticles(dt){
+  for(const p of parts){
+    if(!p.on) continue;
+    p.life-=dt;
+    if(p.life<=0){ p.on=false; p.spr.visible=false; continue; }
+    p.spr.position.addScaledVector(p.vel,dt);
+    p.vel.multiplyScalar(Math.max(0,1-p.drag*dt));
+    p.vel.y += p.buoy*dt;
+    const k = 1-p.life/p.max;
+    p.spr.material.opacity = p.op*(1-k);
+    p.spr.scale.setScalar(p.size*(1+p.grow*k));
+  }
+}
+
+// ================= ВЗРЫВЫ =================
+const boomLights=[];
+for(let i=0;i<3;i++){
+  const l=new THREE.PointLight(0xff8a40,0,420);
+  l.visible=false; scene.add(l);
+  boomLights.push({l,t:0});
+}
+function explosion(pos, scale){
+  spawnPart(fireTex,pos,_v1.set(0,0,0),0.14,30*scale,2.2,1,0,0); // вспышка
+  for(let i=0;i<16;i++){
+    _v1.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize().multiplyScalar(rand(9,26)*Math.sqrt(scale));
+    spawnPart(fireTex,pos,_v1,rand(0.4,0.85),rand(4,8)*scale,1.8,1,1.6,0);
+  }
+  for(let i=0;i<10;i++){
+    _v1.set(rand(-1,1),rand(0,1.2),rand(-1,1)).multiplyScalar(rand(4,12));
+    spawnPart(smokeTex,pos,_v1,rand(1.1,2.1),rand(5,9)*scale,2.4,0.75,1.2,3);
+  }
+  let bl = boomLights.find(x=>x.t<=0) || boomLights[0];
+  bl.t=0.4; bl.l.position.copy(pos); bl.l.visible=true;
+  const d = pos.distanceTo(camera.position);
+  AudioSys.boom(d);
+  camShake = Math.min(1.2, camShake + clamp(1.2-d*0.0016,0,0.8)*scale*0.55);
+}
+function updateBoomLights(dt){
+  for(const b of boomLights){
+    if(b.t>0){
+      b.t-=dt;
+      b.l.intensity=Math.max(0,b.t*12);
+      if(b.t<=0) b.l.visible=false;
+    }
+  }
+}
+
+// ================= ПУЛИ (трассеры) =================
+const bulletGeo = new THREE.BoxGeometry(0.14,0.14,2.4);
+const matTrP = new THREE.MeshBasicMaterial({color:0xffd27a, fog:false});
+const matTrB = new THREE.MeshBasicMaterial({color:0xff5040, fog:false});
+const bullets=[];
+function spawnBullet(pos,dir,speed,team,shooter){
+  let b=null;
+  for(const x of bullets) if(!x.on){ b=x; break; }
+  if(!b){
+    if(bullets.length>=(NET.inRoom?330:170)) return; // в сети больше трассеров (чужие — визуал)
+    b={mesh:new THREE.Mesh(bulletGeo,matTrP), on:false, vel:V3(), life:0, team:'blue', shooter:null, dmg:10};
+    scene.add(b.mesh); bullets.push(b);
+  }
+  b.on=true; b.mesh.visible=true;
+  b.mesh.material = team==='blue'?matTrP:matTrB;
+  b.team=team; b.shooter=shooter||null;
+  b.remote=(shooter==='remote'); // чужой трассер — только визуал
+  b.dmg=(shooter==='player')?PST.dmg:(shooter&&shooter.pst?shooter.pst.dmg:10); // урон — от вооружения стрелка
+  b.vel.copy(dir).multiplyScalar(speed);
+  b.life=1.35;
+  b.mesh.position.copy(pos);
+  b.mesh.quaternion.setFromUnitVectors(AZ, _v7.copy(dir).normalize());
+}
+function updateBullets(dt){
+  for(const b of bullets){
+    if(!b.on) continue;
+    b.life-=dt;
+    b.mesh.position.addScaledVector(b.vel,dt);
+    const p=b.mesh.position;
+    let dead = b.life<=0;
+    if(!dead && p.y < Math.max(terrainHeight(p.x,p.z),-2)+0.5) dead=true;
+    if(!dead){
+      if(b.remote){ /* чужой трассер — только визуал, урон считает сервер */ }
+      else if(NET.inRoom){ // сетевой бой: мои трассеры — заявка попадания на сервер
+        for(const bot of bots){
+          if(!bot.alive||bot.team===NET.myTeam) continue;
+          if(p.distanceToSquared(bot.pos)<22){ NET.sock.emit('claim',{tid:bot.netId,dmg:b.dmg,x:p.x,y:p.y,z:p.z}); dead=true; break; }
+        }
+      }
+      else if(b.team==='blue'){ // синие (игрок и ведомые) бьют только красных
+        for(const bot of bots){
+          if(!bot.alive||bot.team!=='red') continue;
+          if(p.distanceToSquared(bot.pos)<22){ damageBot(bot, b.dmg*rand(0.85,1.2), p, b.shooter); dead=true; break; }
+        }
+      } else { // красные — по игроку и по ведомым
+        if(player.alive&&p.distanceToSquared(player.pos)<13){ damagePlayer(b.dmg*0.62*rand(0.85,1.2)); dead=true; } // боты бьют по игроку слабее (×0.62) — компенсация за автоматизм ИИ
+        if(!dead) for(const al of ALLIES){
+          if(!al.alive) continue;
+          if(p.distanceToSquared(al.pos)<22){ damageBot(al, b.dmg*0.62*rand(0.85,1.2), p, b.shooter); dead=true; break; }
+        }
+      }
+    }
+    if(dead){ b.on=false; b.mesh.visible=false; }
+  }
+}
+
+// ================= РАКЕТЫ =================
+const misGeoBody=new THREE.CylinderGeometry(0.1,0.1,1.15,8);
+const misGeoNose=new THREE.ConeGeometry(0.1,0.34,8);
+const misGeoFin=new THREE.BoxGeometry(0.04,0.3,0.24);
+const misMat=new THREE.MeshPhongMaterial({color:0xd8d2c8, flatShading:true});
+const missiles=[];
+function computeLock(){
+  lockTarget=null;
+  let best=0.6;
+  if(!player.alive) return;
+  _v5.copy(FWD).applyQuaternion(player.quat);
+  for(const b of bots){
+    if(!b.alive||b.team!==enemyTeam()) continue;
+    _v6.copy(b.pos).sub(player.pos);
+    const d=_v6.length();
+    if(d<10||d>5000) continue;
+    _v6.multiplyScalar(1/d);
+    const ang=Math.acos(clamp(_v5.dot(_v6),-1,1));
+    if(ang<best){ best=ang; lockTarget=b; }
+  }
+}
+function spawnMissile(shooter, target, team){ // общая фабрика ракет: игрок (blue) и боты (red)
+  const mm=buildMissileMesh();
+  const m={mesh:mm.mesh, dir:V3(), speed:shooter.speed+35, target:target, life:14, trailT:0, team:team, shooter:shooter, flame:mm.flame};
+  m.dir.copy(FWD).applyQuaternion(shooter.quat);
+  m.mesh.position.copy(shooter.pos).addScaledVector(m.dir,2.5);
+  m.mesh.position.add(_v1.set(rand(-1,1),0.3,rand(-1,1)));
+  m.mesh.quaternion.setFromUnitVectors(FWD, m.dir);
+  scene.add(m.mesh);
+  missiles.push(m);
+  return m;
+}
+function fireMissile(){
+  if(!player.alive) return;
+  if(!PST.msl){ toast('На этом самолёте нет ракет'); return; }
+  if(player.ammo<=0){ toast('Ракеты перезаряжаются…'); return; }
+  if(player.cdM>0) return;
+  player.ammo--; player.cdM=1.2;
+  computeLock();
+  if(NET.inRoom){ // онлайн: ракету симулирует сервер — локально оптимистичный визуал до его данных
+    const cid='c'+((Math.random()*1e9)|0);
+    const m=spawnMissile(player, lockTarget, NET.myTeam);
+    m.cid=cid; m.net=true;
+    NET.sock.emit('msl',{tid:lockTarget?lockTarget.netId:null,dir:[m.dir.x,m.dir.y,m.dir.z],cid});
+    AudioSys.missileS();
+    toast(lockTarget?'Ракета: цель захвачена':'Ракета пущена');
+    return;
+  }
+  spawnMissile(player, lockTarget, 'blue');
+  AudioSys.missileS();
+  toast(lockTarget?'Ракета: цель захвачена':'Ракета пущена');
+}
+function botMissile(b, T){ // пуск ИИ: звук тише с дистанцией; пуск по игроку — предупреждение
+  const m=spawnMissile(b, T, b.team); // команда ракеты — от команды стрелка (красные и союзники)
+  const d=b.pos.distanceTo(player.pos);
+  AudioSys.burst(0.7, 800, 0.9, clamp(0.4-d*0.00022,0.06,0.4));
+  if(T===player&&player.alive){ toast('ПУСК РАКЕТЫ! Тепловые ловушки — G'); AudioSys.beep(1150,0.3,0.28); }
+  return m;
+}
+function updateMissiles(dt){
+  for(let i=missiles.length-1;i>=0;i--){
+    const m=missiles[i];
+    if(m.net){ netStepMissile(m,dt); continue; } // сетевая ракета — положение от сервера, локально только визуал
+    m.life-=dt;
+    if(m.target&&!m.target.alive) m.target=null; // цель погибла / ловушка погасла — ракета летит прямо
+    const red=m.team==='red';
+    if(m.target){
+      _v1.copy(m.target.pos).addScaledVector(m.target.vel,0.25).sub(m.mesh.position).normalize();
+      m.dir.lerp(_v1, Math.min(1,(red?2.6:3.4)*dt)).normalize(); // ракеты ботов инертнее — от них можно уйти манёвром
+    }
+    m.speed = Math.min(m.speed+(red?170:240)*dt, red?300:380);
+    m.mesh.position.addScaledVector(m.dir, m.speed*dt);
+    m.mesh.quaternion.setFromUnitVectors(FWD, m.dir);
+    m.flame.material.rotation = rand(0,6.28);
+    m.flame.scale.setScalar(rand(0.9,1.5));
+    m.trailT-=dt;
+    if(m.trailT<=0){
+      m.trailT=0.028;
+      spawnPart(smokeTex, m.mesh.position, _v1.set(rand(-1,1),rand(-1,1),rand(-1,1)), 1.5, 1.6, 2.6, 0.5, 1, 1.5);
+    }
+    let boom=false, hitBot=null;
+    if(m.target&&m.target.isFlare&&m.mesh.position.distanceToSquared(m.target.pos)<100) boom=true; // подрыв на ловушке
+    if(!boom){
+      if(!red){
+        for(const bot of bots){
+          if(!bot.alive||bot.team!=='red') continue;
+          if(m.mesh.position.distanceToSquared(bot.pos)<110){ boom=true; hitBot=bot; break; }
+        }
+      } else {
+        if(player.alive&&m.mesh.position.distanceToSquared(player.pos)<110) boom=true;
+        if(!boom) for(const al of ALLIES){
+          if(!al.alive) continue;
+          if(m.mesh.position.distanceToSquared(al.pos)<110){ boom=true; break; }
+        }
+      }
+    }
+    if(m.mesh.position.y < Math.max(terrainHeight(m.mesh.position.x,m.mesh.position.z),-2)+1) boom=true;
+    if(m.life<=0) boom=true;
+    if(boom){
+      explosion(m.mesh.position, 1.7);
+      if(!red){ // синие ракеты бьют красных
+        for(const bot of bots){
+          if(!bot.alive||bot.team!=='red') continue;
+          const d=m.mesh.position.distanceTo(bot.pos);
+          if(d<50) damageBot(bot, hitBot===bot?60:50*(1-d/50), bot.pos, m.shooter===player?'player':m.shooter); // фраг — реальному стрелку
+        }
+      } else { // красные — по игроку и ведомым (×0.62, как у пуль — компенсация ИИ)
+        if(player.alive){
+          const d=m.mesh.position.distanceTo(player.pos);
+          if(d<45) damagePlayer(37*(1-d/45));
+        }
+        for(const al of ALLIES){
+          if(!al.alive) continue;
+          const d=m.mesh.position.distanceTo(al.pos);
+          if(d<50) damageBot(al, 31*(1-d/50), al.pos, m.shooter);
+        }
+      }
+      m.mesh.visible=false;
+      scene.remove(m.mesh);
+      missiles.splice(i,1);
+    }
+  }
+}
+
+// ================= ТЕПЛОВЫЕ ЛОВУШКИ (G) =================
+const flareTexB=radialTex([[0,'rgba(255,255,232,1)'],[0.3,'rgba(255,212,110,0.95)'],[0.65,'rgba(255,140,40,0.55)'],[1,'rgba(255,110,20,0)']],64);
+const flaresArr=[]; // пул ловушек (общий для игрока и ботов)
+function spawnFlareEntity(pos,vel){
+  let f=null;
+  for(const q of flaresArr) if(!q.alive){ f=q; break; }
+  if(!f){
+    if(flaresArr.length>=48) return null;
+    f={spr:new THREE.Sprite(new THREE.SpriteMaterial({map:flareTexB,transparent:true,depthWrite:false,fog:false})),
+       pos:V3(), vel:V3(), life:0, alive:false, isFlare:true};
+    scene.add(f.spr); flaresArr.push(f);
+  }
+  f.alive=true; f.pos.copy(pos); f.vel.copy(vel); f.life=3.0;
+  f.spr.visible=true; f.spr.material.opacity=1;
+  return f;
+}
+function ejectFlares(pos,quat,n){ // выброс пачки: назад и в стороны
+  const out=[];
+  for(let i=0;i<n;i++){
+    _v2.set(rand(-1,1),rand(-0.7,0.1),rand(-0.6,0.6)).normalize().applyQuaternion(quat);
+    const v=_v3.copy(_v2).multiplyScalar(rand(15,24));
+    _v2.copy(FWD).applyQuaternion(quat);
+    v.addScaledVector(_v2,-8);
+    const f=spawnFlareEntity(pos,v);
+    if(f) out.push(f);
+  }
+  return out;
+}
+function updateFlares(dt){
+  for(const f of flaresArr){
+    if(!f.alive) continue;
+    f.life-=dt;
+    if(f.life<=0||f.pos.y<Math.max(terrainHeight(f.pos.x,f.pos.z),-2)+0.5){ f.alive=false; f.spr.visible=false; continue; }
+    f.vel.y-=15*dt; f.vel.multiplyScalar(1-Math.min(1,1.5*dt));
+    f.pos.addScaledVector(f.vel,dt);
+    f.spr.position.copy(f.pos);
+    f.spr.material.opacity=Math.min(1,f.life/1.1)*(0.8+Math.random()*0.2);
+    f.spr.scale.setScalar(2.2+Math.random()*1.1);
+    if(Math.random()<0.4) spawnPart(smokeTex,f.pos,_v1.set(rand(-1.5,1.5),rand(0.5,2.5),rand(-1.5,1.5)),0.8,1.1,1.6,0.5,1,1);
+  }
+}
+function deployFlares(){ // игрок: клавиша G. Отводит ТОЛЬКО ракеты дальше 120 м — ближе уже поздно
+  if(!player.alive) return;
+  if(!PST.jet){ toast('На этом самолёте нет тепловых ловушек'); return; }
+  if(player.flareCd>0) return;
+  if(player.flares<=0){ toast('Ловушки закончились'); return; }
+  player.flares--; player.flareCd=1.0;
+  const fresh=ejectFlares(player.pos,player.quat,4);
+  if(NET.inRoom){ // онлайн: отвод красных ракет делает сервер (они симулируются там)
+    NET.sock.emit('flare');
+    AudioSys.flareS();
+    toast('Ловушки отработаны');
+    return;
+  }
+  let saved=0;
+  for(const m of missiles){
+    if(m.team==='red'&&m.target===player&&m.mesh.position.distanceTo(player.pos)>120&&fresh.length&&Math.random()<0.8){
+      m.target=fresh[(Math.random()*fresh.length)|0]; saved++;
+    }
+  }
+  AudioSys.flareS();
+  toast(saved?'Ловушки отработали — ракета уведена':'Ловушки отработаны');
+}
+function tryCobra(){ // игрок: клавиша C — только Су-57. Ракеты в окне 160–560 м срываются с захвата («правильное исполнение»)
+  if(!player.alive) return;
+  if(!PST.prem){ toast('Кобра — фирменный приём только Су-57'); return; }
+  if(player.cobraT>0) return;
+  if(player.cobraCd>0){ toast('Кобра: восстановление '+Math.ceil(player.cobraCd)+' с'); return; }
+  if(player.speed<PST.minSpd+34){ toast('Мало скорости — кобра не выйдет'); return; }
+  const gh=Math.max(terrainHeight(player.pos.x,player.pos.z),-2);
+  if(player.pos.y<gh+160){ toast('Слишком низко для кобры!'); return; }
+  if(NET.inRoom){ // онлайн: срыв захвата выполняет сервер, локально — только анимация
+    NET.sock.emit('cobra');
+    player.cobraT=2.5; player.cobraCd=14;
+    _v1.copy(FWD).applyQuaternion(player.quat); _v1.y=0;
+    if(_v1.lengthSq()<0.01) _v1.set(0,0,-1);
+    player.cobraDir.copy(_v1).normalize();
+    player.cobraSpd=player.speed;
+    AudioSys.burst(1.2,260,1.0,0.5);
+    camShake=Math.max(camShake,0.5);
+    toast('КОБРА!');
+    return;
+  }
+  let broke=0;
+  for(const m of missiles){
+    if(m.team!==enemyTeam()||m.target!==player) continue;
+    const d=m.mesh.position.distanceTo(player.pos);
+    if(d>160&&d<560){ // окно: раньше — ракета дожмёт после манёвра, позже — уже поздно
+      m.target=null; m.dir.y-=0.22; m.dir.normalize(); m.life=Math.min(m.life,3.2); broke++;
+    }
+  }
+  player.cobraT=2.5; player.cobraCd=14;
+  _v1.copy(FWD).applyQuaternion(player.quat); _v1.y=0; // траектория — горизонталь на момент ввода
+  if(_v1.lengthSq()<0.01) _v1.set(0,0,-1);
+  player.cobraDir.copy(_v1).normalize();
+  player.cobraSpd=player.speed;
+  AudioSys.burst(1.2,260,1.0,0.5); // рёв двигателя на сверхбольшом угле
+  camShake=Math.max(camShake,0.5);
+  toast(broke?'КОБРА! Ракета сорвалась с захвата':'КОБРА');
+}
+function botFlares(b){ // ИИ ловушек: боты отрабатывают сами, шанс отвода ниже, чем у игрока
+  const fresh=ejectFlares(b.pos,b.quat,3);
+  let saved=0;
+  for(const m of missiles){
+    if(m.target===b&&m.mesh.position.distanceTo(b.pos)>120&&fresh.length&&Math.random()<0.55){
+      m.target=fresh[(Math.random()*fresh.length)|0]; saved++;
+    }
+  }
+  if(saved&&b.team==='red') toast('Цель отстрелила ловушки — ракета уведена'); // фидбэк игроку
+}
+
+// ================= УРОН / ГИБЕЛЬ =================
+function damagePlayer(n){
+  if(!player.alive) return;
+  player.hp-=n; player.lastHit=0;
+  dmgA=0.65;
+  camShake=Math.min(1.2,camShake+0.25);
+  AudioSys.hit();
+  if(player.hp<=0){ player.hp=0; killPlayer(); }
+}
+function damageBot(b, n, at, killer){
+  if(!b.alive) return;
+  b.hp-=n;
+  for(let i=0;i<3;i++)
+    spawnPart(fireTex, at, _v1.set(rand(-6,6),rand(-6,6),rand(-6,6)), 0.25, 2.2, 1, 1, 2, 0);
+  AudioSys.clack();
+  if(b.hp<=0) killBot(b, killer||null);
+}
+function killBot(b, killer){
+  if(!b.alive) return;
+  b.alive=false; b.mesh.visible=false;
+  explosion(b.pos, 2.1);
+  if(b.team==='red') kills++; // любой уничтоженный красный — в общий счёт: и от игрока, и от союзников, и если разбился сам
+  else blueLives--; // любая смерть синего ведомого — минус жизнь из общего счёта (15)
+  if(killer==='player'){
+    pKills++; // личный счёт игрока: только сбитые им самим (фраги союзников и краши красных в него не идут)
+    payReward(120,70); // фраг игроком: 120₽ + 70 опыта
+    toast(['Цель уничтожена!','Сбит! Отличная работа!','Есть один!','Цель поражена!'][pKills%4]);
+  } else if(killer){
+    killer.kills++;
+    if(killer.team==='blue'&&b.team==='red') payReward(50,30); // фраг союзника — командная поддержка (в общий кошелёк боя)
+    if(killer.team==='blue') toast(killer.name+' сбил: '+b.name);
+    else if(b.team==='blue') toast('Ведомый сбит: '+b.name);
+    else toast('Вражеский самолёт разбился');
+  } else { toast(b.team==='blue'?'Ведомый разбился':'Вражеский самолёт разбился');
+    if(b.team==='red') payReward(40,20); // краш красного — тоже в общий счёт победы и в кошелёк
+  }
+  b.lives--;
+  if(b.lives>0) respawnQ.push({t:4.5+rand(0,3), b}); // жизни кончились — бот больше не респавнится
+}
+function killPlayer(){
+  if(!player.alive) return;
+  if(NET.inRoom){ // онлайн: гибель подтверждает сервер (killed) — локально только визуал крушения
+    player.alive=false;
+    explosion(player.pos, 2.8);
+    player.mesh.visible=false;
+    mouseDown=false; mAccX=0; mAccY=0; mFltX=0; mFltY=0;
+    state='dead'; deathT=0; deadShown=true; lockTarget=null;
+    toast('Самолёт разбился');
+    return;
+  }
+  player.alive=false;
+  explosion(player.pos, 2.8);
+  player.mesh.visible=false;
+  mouseDown=false; mAccX=0; mAccY=0; mFltX=0; mFltY=0;
+  // фраг — ближайшему красному (если это не крушение)
+  let killer=null, kd=900;
+  for(const b of bots){ if(!b.alive||b.team!=='red') continue; const d=b.pos.distanceTo(player.pos); if(d<kd){ kd=d; killer=b; } }
+  if(killer){ killer.kills++; lastKiller=killer.name; } else lastKiller=null;
+  playerLives--; blueLives--; // жизнь потеряна (и из общего счёта синих тоже); при 0 — экран поражения, иначе возрождение
+  state='dead'; deathT=0; deadShown=false;
+  lockTarget=null;
+}
+function respawnPlayer(){ // возрождение за жизнь: kills и бой сохраняются
+  player.pos.set(0,300,0);
+  player.quat.set(0,0,0,1);
+  player.speed=Math.round(PST.maxSpd*0.65); player.throttle=0.65; player.hp=PST.hp; player.alive=true;
+  player.ammo=PST.msl; player.ammoT=0; player.cdM=0; player.cd=0; player.lastHit=99; player.smokeT=0;
+  player.flares=player.flaresMax; player.flareCd=0; // ловушки — полный комплект на новую жизнь
+  player.cobraT=0; player.cobraCd=0; player.cobraP=0; // кобра — чистый лист на новую жизнь
+  player.g=1; player.glocT=0; player.gPk=1; player.trailT=0;
+  player.mesh.visible=true;
+  mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null;
+  camQ.copy(player.quat); camInit=false;
+  camShake=0; dmgA=0;
+  state='play';
+  $('hud').classList.add('on');
+  toast('Возрождение! Осталось жизней: '+playerLives);
+  tryLock();
+}
+
+// ================= СТРЕЛЬБА =================
+function playerFire(dt){
+  player.cd-=dt;
+  while(player.cd<=0){
+    player.cd+=0.115;
+    for(const g of GUNS){
+      _v1.copy(g).applyQuaternion(player.quat).add(player.pos);
+      _v2.copy(FWD).applyQuaternion(player.quat);
+      _v2.x+=rand(-1,1)*0.014; _v2.y+=rand(-1,1)*0.014; _v2.z+=rand(-1,1)*0.008;
+      _v2.normalize();
+      spawnBullet(_v1,_v2,520+player.speed,NET.inRoom?NET.myTeam:'blue','player');
+      spawnPart(fireTex,_v1,_v3.set(0,0,0),0.06,2.4,0.5,1,0,0);
+    }
+    AudioSys.gun();
+  }
+}
+function botFire(b){
+  const T=b.tgt;
+  if(!T||!T.alive) return;
+  _v1.set(0,0.4,-3).applyQuaternion(b.quat).add(b.pos);
+  const d=b.pos.distanceTo(T.pos);
+  _v2.copy(T.pos).addScaledVector(T.vel, d/430*0.85);
+  _v2.sub(_v1).normalize();
+  // разброс: красные бьют точнее (2–3.5°), союзники — 3–5° (враги усилены)
+  const dev=(b.team==='red'?rand(2,3.5):rand(3,5))*Math.PI/180, az=rand(0,Math.PI*2);
+  _v3.copy(Math.abs(_v2.y)>0.9?AX:AY).cross(_v2).normalize();
+  _v4.copy(_v2).cross(_v3);
+  _v2.multiplyScalar(Math.cos(dev))
+     .addScaledVector(_v3,Math.cos(az)*Math.sin(dev))
+     .addScaledVector(_v4,Math.sin(az)*Math.sin(dev))
+     .normalize();
+  spawnBullet(_v1,_v2,430,b.team,b);
+  AudioSys.botGun(d);
+}
+
+// ================= ИИ БОТОВ =================
+function steerToward(b, target, dt){
+  _v1.copy(target).sub(b.pos).normalize().applyQuaternion(_q1.copy(b.quat).invert());
+  const yawErr=Math.atan2(-_v1.x,-_v1.z);
+  const pitchErr=Math.asin(clamp(_v1.y,-1,1));
+  const upW=_v2.set(0,1,0).applyQuaternion(_q1);
+  const bank=Math.asin(clamp(-upW.x,-1,1));
+  const want=clamp(-yawErr*1.35,-1.05,1.05);
+  const roll=clamp((want-bank)*2.4,-1,1);
+  const bt=(b.pst?b.pst.turn:1); // манёвренность своего самолёта
+  b.quat.multiply(_q1.setFromAxisAngle(AX, clamp(pitchErr,-1,1)*1.5*bt*dt));
+  b.quat.multiply(_q1.setFromAxisAngle(AY, clamp(yawErr,-1,1)*0.85*bt*dt));
+  b.quat.multiply(_q1.setFromAxisAngle(AZ, -roll*2.4*bt*dt));
+  b.quat.normalize();
+}
+function botFront(b, T){
+  if(!T) return false;
+  _v6.copy(T.pos).sub(b.pos).normalize();
+  return _v6.dot(_v7.copy(FWD).applyQuaternion(b.quat))>0.25;
+}
+function updateBots(dt){
+  for(let i=respawnQ.length-1;i>=0;i--){
+    respawnQ[i].t-=dt;
+    if(respawnQ[i].t<=0){
+      const e=respawnQ.splice(i,1)[0];
+      if(e.b.lives>0) resetBot(e.b); // респавн только при оставшихся жизнях
+    }
+  }
+  for(const b of bots){
+    if(b.net){ netStepBot(b,dt); continue; } // сетевая сущность: рендер из снапшотов сервера, ИИ не нужен
+    if(!b.alive) continue;
+    _v3.copy(player.pos).sub(b.pos);
+    const dist=_v3.length();
+    // выбор цели: красные атакуют ближайшего синего (игрок и ведомые равноправны),
+    // синие атакуют красного, ближайшего к игроку (защита) или к себе
+    let T=null;
+    if(state==='play'){
+      if(b.team==='red'){ // ближайшая цель — без приоритета игрока
+        let bd=1e9;
+        if(player.alive){ T=player; bd=dist; }
+        for(const al of ALLIES){
+          if(!al.alive) continue;
+          const d2=b.pos.distanceTo(al.pos);
+          if(d2<bd){ T=al; bd=d2; }
+        }
+      } else {
+        let best=1e9;
+        for(const e of bots){
+          if(!e.alive||e.team!=='red') continue;
+          const dp=e.pos.distanceTo(player.pos), ds=b.pos.distanceTo(e.pos);
+          const sc=dp*0.65+ds*0.35;
+          if(dp<4200&&ds<4200&&sc<best){ best=sc; T=e; }
+        }
+      }
+    }
+    b.tgt=T;
+    const distT=T?b.pos.distanceTo(T.pos):1e9;
+    const engage=!!T&&distT<5200; // на большой карте атака начинается с ~5 км
+    const target=_v4;
+    const agl=b.pos.y-Math.max(terrainHeight(b.pos.x,b.pos.z),-2);
+    if(agl<110){ // избежать земли
+      target.copy(b.pos).addScaledVector(_v5.copy(FWD).applyQuaternion(b.quat),350);
+      target.y=b.pos.y+420;
+    } else if(engage&&botFront(b,T)){ // атака цели с упреждением
+      target.copy(T.pos).addScaledVector(T.vel, distT/430*0.8);
+    } else if(b.threatT>0){ // уклонение
+      target.copy(b.pos).addScaledVector(b.evadeDir,600);
+    } else if(b.team==='blue'){ // ведомый: место в строю рядом с игроком
+      _v5.copy(FWD).applyQuaternion(player.quat);
+      _v6.set(0,1,0).applyQuaternion(player.quat);
+      _v7.set(1,0,0).applyQuaternion(player.quat);
+      const off=ALLY_SLOTS[b.slot%ALLY_SLOTS.length];
+      target.copy(player.pos)
+        .addScaledVector(_v5,-off[2]).addScaledVector(_v7,off[0]).addScaledVector(_v6,off[1])
+        .addScaledVector(player.vel,0.6);
+    } else { // патруль вокруг игрока
+      b.orbitA+=dt*0.22*b.orbitDir;
+      target.copy(player.pos).add(_v5.set(Math.cos(b.orbitA)*4300, 160+Math.sin(b.orbitA*0.7)*120, Math.sin(b.orbitA)*4300));
+    }
+    if(engage&&!botFront(b,T)&&distT<380&&b.threatT<=0){
+      b.threatT=rand(2.2,4);
+      b.evadeDir.set(rand(-1,1),rand(-0.35,0.55),rand(-1,1)).normalize(); // без тяги вверх — боты не «забиваются» под потолок
+      b.evadeDir.addScaledVector(_v3.copy(T.pos).sub(b.pos).normalize(),-1.2).normalize();
+    }
+    if(b.threatT>0) b.threatT-=dt;
+    // боты не забираются выше зоны досягаемости (~500 м над игроком) — иначе их не догнать
+    if(b.pos.y>player.pos.y+500) target.y=Math.min(target.y,b.pos.y-400);
+    steerToward(b, target, dt);
+    const tSpd = engage?(b.team==='red'?b.pst.maxSpd*0.95:b.pst.maxSpd*0.9):(b.team==='blue'?clamp(player.speed+8+b.pos.distanceTo(target)*0.1,b.pst.maxSpd*0.6,b.pst.maxSpd*1.15):b.pst.maxSpd*0.75); // скорости — от ТТХ своего самолёта (красный в бою ~95% максимума)
+    b.speed += (tSpd-b.speed)*(1-Math.exp(-dt*0.5));
+    _v5.copy(FWD).applyQuaternion(b.quat);
+    b.pos.addScaledVector(_v5, b.speed*dt);
+    b.vel.copy(_v5).multiplyScalar(b.speed);
+    b.prop.rotation.z += 45*dt;
+    const bAb=b.mesh.userData.ab; // форсаж ботов-реактивных (массив пламён: 1 или 2 двигателя)
+    if(bAb) for(const f of bAb){ f.material.opacity=0.3+Math.random()*0.3; f.scale.y=0.85+Math.random()*0.4; }
+    const fireR=b.team==='red'?950:820; // красные открывают огонь дальше
+    if(engage&&distT<fireR){ // очереди по цели
+      b.attackT-=dt;
+      if(b.attackT<=0){
+        _v5.copy(FWD).applyQuaternion(b.quat);
+        _v6.copy(T.pos).sub(b.pos).normalize();
+        if(_v5.dot(_v6)>0.955){ b.burst=b.team==='red'?8:6; b.gunT=0; } // красные бьют длиннее и чаще
+        b.attackT=b.team==='red'?rand(0.9,2.1):rand(1.1,2.6);
+      }
+    }
+    if(b.burst>0){
+      b.gunT-=dt;
+      if(b.gunT<=0){ botFire(b); b.burst--; b.gunT=0.105; }
+    }
+    // ===== ракетный ИИ: пуски с обеих сторон — красные по синим, союзники по красным =====
+    if(b.pst.msl>0&&b.mslAmmo>0&&state==='play'&&T){
+      b.mslCd-=dt;
+      if(b.mslCd<=0&&distT>450&&distT<1800){
+        _v5.copy(FWD).applyQuaternion(b.quat);
+        _v6.copy(T.pos).sub(b.pos).normalize();
+        const ally=b.team==='blue'; // союзники дисциплинированнее: строже конус, дольше перезарядка
+        if(_v5.dot(_v6)>(ally?0.94:0.93)){ botMissile(b,T); b.mslAmmo--; b.mslCd=ally?rand(11,16):rand(9,14); }
+      }
+    }
+    // ===== тепловые ловушки ботов: автоматический отвод ракет (окно 140–600 м) =====
+    if(b.flares>0){
+      b.flareCd-=dt;
+      if(b.flareCd<=0){
+        for(const m of missiles){
+          if(m.target===b){
+            const md2=m.mesh.position.distanceToSquared(b.pos);
+            if(md2>19600&&md2<360000){ botFlares(b); b.flares--; b.flareCd=rand(1.4,2.4); break; }
+          }
+        }
+      }
+    }
+    // ===== кобра красного Су-57: срыв захвата ракет синих в окне 180–520 м, до 2 раз за жизнь =====
+    if(b.cobraCd>0) b.cobraCd-=dt;
+    if(b.pst.prem&&b.cobraN>0&&b.cobraCd<=0){
+      for(const m of missiles){
+        if(m.target!==b||m.team!=='blue') continue;
+        const md2=m.mesh.position.distanceToSquared(b.pos);
+        if(md2>32400&&md2<270400){
+          if(Math.random()<0.55){ m.target=null; m.dir.y-=0.22; m.dir.normalize(); m.life=Math.min(m.life,3.2); b.cobraN--; b.cobraCd=12; toast('Цель ушла в кобру — ракета потеряна'); }
+          else b.cobraCd=rand(1.2,2); // неудачная попытка — короткая пауза, ракета уже близко
+          break;
+        }
+      }
+    }
+    if(b.hp<12){
+      b.smokeT-=dt;
+      if(b.smokeT<=0){
+        b.smokeT=0.08;
+        spawnPart(smokeTex,b.pos,_v1.set(rand(-2,2),rand(0,3),rand(-2,2)),1.2,2.5,2,0.6,1,2);
+      }
+    }
+    if(b.pos.y < Math.max(terrainHeight(b.pos.x,b.pos.z),-2)+2.2) killBot(b,null);
+    if(b.team==='red'&&player.alive&&dist<9){ damagePlayer(45); killBot(b,null); }
+  }
+}
+
+// ================= ФИЗИКА ИГРОКА =================
+function updatePlayer(dt){
+  if(!player.alive) return;
+  // ===== КОБРА (Су-57): скольжение на хвосте. Траектория — горизонталь (cobraDir), нос анимируется
+  // инкрементально: суммарный поворот за манёвр равен нулю, к концу quat совпадает с исходным =====
+  let cbr=false, cbT=0;
+  if(player.cobraT>0){
+    cbr=true; cbT=2.5-player.cobraT;
+    const dp=(cbT<0.5?7.8*(1-cbT/0.5):cbT<1.5?-0.25:cbT<2.1?-3.667:1.25)*Math.min(dt,0.05); // кламп dt — лаг-спайк не перелетает по тангажу
+    player.mesh.rotateX(dp); player.cobraP+=dp;
+    player.cobraT-=dt;
+    player.pos.y+=(cbT<0.9?22:-30)*dt; // подъём на вводе — просадка на выходе (горка)
+    player.g+=(1.3-player.g)*(1-Math.exp(-dt*4)); // перегрузка в кобре малая — в блэкаут не уходим
+    if(player.cobraT<=0){ player.cobraT=0; player.cobraCd=14; player.cobraP=0; }
+  }
+  if(player.cobraCd>0) player.cobraCd-=dt;
+  // управление (угловые скорости сглаживаются)
+  const auth=clamp(player.speed/44,0.35,1.08);
+  // мышь — основное управление (крен/тангаж), клавиши — альтернатива; отклик живее (~1.7x от 0.0015)
+  const mR=clamp(-mAccX*0.0045,-1,1), mP=clamp(-mAccY*0.0038,-1,1); // чуть отзывчивее, без дёрганья
+  const mDec=Math.exp(-dt*6); mAccX*=mDec; mAccY*=mDec; // отпускание быстрое
+  const mFl=1-Math.exp(-dt*8); // ход команды живой, но сглаженный
+  mFltX+=(mR-mFltX)*mFl; mFltY+=(mP-mFltY)*mFl;
+  const gloc=player.glocT>0; // G-LOC: сознание потеряно — управление отключено
+  const netIdle=NET.inRoom&&NET.idle; // онлайн-«пауза»: бой идёт, рули отключены
+  const tP=clamp((keys.KeyS?1:0)-(keys.KeyW?1:0)+mFltY,-1,1)*(cbr||netIdle?0:1); // в кобре рули заморожены
+  const tR=clamp((keys.KeyA?1:0)-(keys.KeyD?1:0)+mFltX,-1,1)*(cbr||netIdle?0:1);
+  const tY=((keys.KeyQ?1:0)-(keys.KeyE?1:0))*(cbr||netIdle?0:1);
+  const sm=1-Math.exp(-dt*10); // клавиши без задержки
+  player.ctrl.p+=((gloc?0:tP)-player.ctrl.p)*sm;
+  player.ctrl.r+=((gloc?0:tR)-player.ctrl.r)*sm;
+  player.ctrl.y+=((gloc?0:tY)-player.ctrl.y)*sm;
+  // фактические угловые скорости (лимит 1.5 рад/с — мгновенных разворотов нет)
+  const wP=clamp(player.ctrl.p*1.35*PST.turn*auth,-1.5,1.5);
+  const wR=clamp(player.ctrl.r*2.5*PST.turn*auth,-1.5,1.5);
+  const wY=clamp(player.ctrl.y*0.78*PST.turn*auth,-1.5,1.5);
+  // ===== ПЕРЕГРУЗКА: G = 1 + |V·ω(тангаж)| / 16.0 =====
+  const gT=1+Math.abs(player.speed*wP)/16.0; // модуль — без отрицательной перегрузки; /16 — G растёт чуть медленнее
+  player.g+=(gT-player.g)*(1-Math.exp(-dt*3.5)); // медленнее набирается — краткий рывок не «в темноту»
+  if(player.glocT>0){ player.glocT-=dt; if(player.glocT<=0) player.glocT=-0.001; } // фаза блэкаута
+  else if(player.glocT<0){ player.glocT-=dt; if(player.glocT<-1.2) player.glocT=0; } // плавный выход
+  else if(player.g>10.0){ // G-LOC: только реально жёсткая затяжная перегрузка
+    player.gPk=player.g; // фиксируем пиковую перегрузку — её и показываем до конца выхода
+    player.glocT=2+rand(0,1);
+    toast('ПОТЕРЯ СОЗНАНИЯ! Перегрузка '+player.g.toFixed(1)+'G');
+  }
+  if(!cbr){ player.mesh.rotateX(wP*dt); player.mesh.rotateZ(wR*dt); player.mesh.rotateY(wY*dt); }
+  // автовыравнивание: мышь и клавиши не активны — lerp к горизонтальному полёту
+  const lvl=gloc?0:clamp(1-(Math.abs(mFltX)+Math.abs(mFltY))*5,0,1)*
+            ((keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD)?0:1);
+  if(lvl>0&&!cbr){
+    _v1.copy(FWD).applyQuaternion(player.quat); // вектор носа
+    _v2.copy(AX).applyQuaternion(player.quat);  // вектор правого крыла
+    player.mesh.rotateZ(-_v2.y*0.6*lvl*auth*dt); // очень плавное выравнивание крена
+    player.mesh.rotateX(-_v1.y*0.35*lvl*auth*dt); // и тангажа
+  }
+  if(!gloc&&!cbr){ // при потере сознания — самолёт летит прямо
+    _v1.copy(AX).applyQuaternion(player.quat);
+    player.mesh.rotateOnWorldAxis(AY,_v1.y*0.55*dt);
+  }
+  // инверсионные следы с законцовок крыльев при высокой перегрузке
+  if(player.g>5.5){
+    player.trailT-=dt;
+    if(player.trailT<=0){
+      player.trailT=0.045;
+      for(const s of [-1,1]){
+        _v2.set(s*4.8,1.42,-0.55).applyQuaternion(player.quat).add(player.pos);
+        spawnPart(trailTex,_v2,_v3.set(rand(-0.5,0.5),rand(-0.3,0.5),rand(-0.5,0.5)),0.8,1.3,2.0,0.5,1.6,0);
+      }
+    }
+  }
+  // тяга и скорость
+  const sh=keys.ShiftLeft||keys.ShiftRight;
+  const ct=keys.ControlLeft||keys.ControlRight||keys.KeyX;
+  if(sh) player.throttle=Math.min(1,player.throttle+0.5*dt);
+  if(ct) player.throttle=Math.max(0,player.throttle-0.5*dt);
+  const tSpd=PST.minSpd+player.throttle*(PST.maxSpd-PST.minSpd); // скорость — от ТТХ своего самолёта
+  player.speed+=(tSpd-player.speed)*(1-Math.exp(-dt*0.55));
+  _v1.copy(FWD).applyQuaternion(player.quat);
+  if(cbr) _v1.copy(player.cobraDir); // кобра: движение по зафиксированной горизонтали, нос стоит вертикально
+  player.speed-=_v1.y*PST.climb*dt; // набор высоты замедляет по ТТХ (слабый двигатель — сильнее), пикирование разгоняет
+  if(cbr) player.speed+=(Math.max(player.cobraSpd*0.34,PST.minSpd+8)-player.speed)*(1-Math.exp(-dt*2.6)); // на скольжении скорость падает почти вдвое
+  player.speed=clamp(player.speed,6,PST.maxSpd*1.28);
+  player.vel.copy(_v1).multiplyScalar(player.speed);
+  player.pos.addScaledVector(_v1,player.speed*dt);
+  // сваливание при малой скорости
+  const stall=clamp((PST.minSpd+1-player.speed)/(PST.minSpd+1),0,1);
+  if(stall>0){
+    player.mesh.rotateX(-stall*0.5*dt);
+    player.pos.y-=stall*24*dt;
+  }
+  // потолок
+  if(player.pos.y>8000){
+    player.pos.y=8000;
+    player.speed=Math.min(player.speed,PST.minSpd+6);
+  }
+  // столкновение с землёй
+  const gh=Math.max(terrainHeight(player.pos.x,player.pos.z),-2);
+  if(player.pos.y<gh+2){ killPlayer(); return; }
+  player.lastHit+=dt; // учёт времени с последнего урона (регенерация убрана)
+  // перезарядка ракет и ловушек
+  player.cdM=Math.max(0,player.cdM-dt);
+  if(player.flareCd>0) player.flareCd-=dt;
+  if(PST.msl>0&&player.ammo<PST.msl){
+    player.ammoT+=dt;
+    if(player.ammoT>8){ player.ammoT=0; player.ammo++; toast('Ракета заряжена'); }
+  }
+  // дым при сильных повреждениях
+  if(player.hp<35){
+    player.smokeT-=dt;
+    if(player.smokeT<=0){
+      player.smokeT=0.09;
+      _v2.set(0,0.4,-3).applyQuaternion(player.quat).add(player.pos);
+      spawnPart(smokeTex,_v2,_v1.set(rand(-2,2),rand(0,3),rand(-2,2)),1.1,2.5,2,0.6,1,2);
+    }
+  }
+  // огонь из пушек (при G-LOC стрелять нельзя)
+  if(mouseDown&&!gloc&&!cbr&&!NET.idle) playerFire(dt); // в кобре пушки не работают — нос смотрит в зенит
+  else player.cd=0;
+  // граница зоны боя
+  const dcen=Math.sqrt(player.pos.x*player.pos.x+player.pos.z*player.pos.z);
+  if(dcen<25000) warnFlags.bound=false;
+  if(dcen>25000 && !warnFlags.bound){ warnFlags.bound=true; toast('Граница зоны боя! Разворачивайтесь'); }
+  if(dcen>28000){
+    _v2.set(-player.pos.x,0,-player.pos.z).normalize();
+    _v1.copy(FWD).applyQuaternion(player.quat); _v1.y=0; _v1.normalize();
+    const cross=_v1.x*_v2.z-_v1.z*_v2.x;
+    player.mesh.rotateOnWorldAxis(AY,(cross>0?-1:1)*0.35*dt);
+  }
+}
+
+// автопилот для экрана меню
+function updateMenuPilot(dt){
+  if(!player.alive) return;
+  player.throttle=0.7;
+  _v1.copy(FWD).applyQuaternion(player.quat);
+  player.speed+=(0.6*PST.maxSpd-player.speed)*(1-Math.exp(-dt*0.5));
+  player.speed-=_v1.y*13*dt;
+  player.speed=clamp(player.speed,10,105);
+  player.pos.addScaledVector(_v1,player.speed*dt);
+  player.vel.copy(_v1).multiplyScalar(player.speed);
+  const ahead=Math.max(terrainHeight(player.pos.x+_v1.x*700, player.pos.z+_v1.z*700),-2);
+  const want=clamp((ahead+280-player.pos.y)*0.004,-0.35,0.45);
+  player.mesh.rotateX(want*dt);
+  player.mesh.rotateY(Math.sin(time*0.22)*0.1*dt);
+  player.mesh.rotateOnWorldAxis(AY,_v2.copy(AX).applyQuaternion(player.quat).y*0.4*dt);
+  const gh=Math.max(terrainHeight(player.pos.x,player.pos.z),-2);
+  if(player.pos.y<gh+2){ player.pos.y=gh+150; player.mesh.rotateX(0.5); }
+}
+
+// ================= КАМЕРА =================
+let camFP=false;
+const camQ=new THREE.Quaternion();
+let camInit=false, camFov=74;
+function updateCamera(dt){
+  const zoom = zoomHeld||keys.KeyZ;
+  if(state==='menu'){
+    camFov += (60-camFov)*(1-Math.exp(-dt*2));
+    const a=time*0.28;
+    camera.position.set(player.pos.x+Math.sin(a)*15, player.pos.y+4.5, player.pos.z+Math.cos(a)*15);
+    camera.lookAt(player.pos.x, player.pos.y+1.5, player.pos.z);
+    camera.fov=camFov; camera.updateProjectionMatrix();
+    return;
+  }
+  if(state==='dead'){
+    if(camera.position.y<player.pos.y+60) camera.position.y+=2.5*dt;
+    camera.lookAt(player.pos);
+    return;
+  }
+  let fovT;
+  if(camFP){ // вид из кабины
+    camera.position.set(0,1.06,0.85).applyQuaternion(player.quat).add(player.pos);
+    camera.quaternion.copy(player.quat);
+    fovT = zoom?56:82;
+  } else { // вид сзади, камера плавно следует
+    camQ.slerp(player.quat, player.cobraT>0?0:1-Math.exp(-dt*4.2)); // в кобре камера остаётся на траектории — нос кувыркается сам
+    _v1.set(0,2.4,11.5).applyQuaternion(camQ).add(player.pos);
+    if(!camInit){ camera.position.copy(_v1); camInit=true; }
+    else camera.position.lerp(_v1, 1-Math.exp(-dt*8));
+    camera.quaternion.copy(camQ);
+    fovT = zoom?46:74;
+  }
+  camFov += (fovT-camFov)*(1-Math.exp(-dt*8));
+  camera.fov=camFov;
+  camera.updateProjectionMatrix();
+  if(camShake>0.002){
+    camera.position.x+=rand(-1,1)*camShake*0.45;
+    camera.position.y+=rand(-1,1)*camShake*0.35;
+    camera.position.z+=rand(-1,1)*camShake*0.45;
+  }
+}
+
+// ================= МАРКЕРЫ ЦЕЛЕЙ =================
+const bracketEls=[];
+(function(){
+  const cont=$('brackets');
+  for(let i=0;i<6;i++){
+    const d=document.createElement('div');
+    d.className='tgt';
+    d.innerHTML='<div class="lbl"></div>';
+    cont.appendChild(d);
+    bracketEls.push(d);
+  }
+})();
+function updateBrackets(){
+  let bi=0;
+  if(state==='play' && player.alive){
+    const ET=enemyTeam();
+    const sorted=bots.filter(b=>b.alive&&b.team===ET)
+      .sort((a,b)=>a.pos.distanceToSquared(player.pos)-b.pos.distanceToSquared(player.pos));
+    for(const b of sorted){
+      if(bi>=6) break;
+      const d=b.pos.distanceTo(player.pos);
+      if(d>10000) continue;
+      _v5.copy(b.pos).applyMatrix4(camera.matrixWorldInverse);
+      if(_v5.z>-0.5) continue; // цель позади камеры
+      _v6.copy(b.pos).project(camera);
+      if(Math.abs(_v6.x)>1.08||Math.abs(_v6.y)>1.08) continue;
+      const el=bracketEls[bi++];
+      el.style.display='block';
+      el.style.left=((_v6.x*0.5+0.5)*window.innerWidth)+'px';
+      el.style.top=((-_v6.y*0.5+0.5)*window.innerHeight)+'px';
+      el.classList.toggle('lock', b===lockTarget);
+      el.firstChild.textContent=(b===lockTarget?'ЗАХВАТ · ':'')+Math.round(d)+' м';
+    }
+  }
+  for(;bi<6;bi++) bracketEls[bi].style.display='none';
+}
+
+// ---- упреждающий круг (lead indicator) ----
+const leadEl=document.createElement('div');
+leadEl.id='lead';
+leadEl.innerHTML='<svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="11" stroke="#ffd24a" stroke-width="1.7" stroke-dasharray="4.2 3"/><circle cx="19" cy="19" r="2.2" fill="#ffd24a"/></svg>';
+$('brackets').appendChild(leadEl);
+function updateLead(){
+  let show=false;
+  if(state==='play'&&player.alive){
+    const fwd=_v5.copy(FWD).applyQuaternion(player.quat);
+    // цель: захваченная, либо ближайшая впереди ближе 600 м
+    let tgt=null, bd=600;
+    if(lockTarget&&lockTarget.alive){
+      const d=lockTarget.pos.distanceTo(player.pos);
+      _v6.copy(lockTarget.pos).sub(player.pos).normalize();
+      if(d<600&&_v6.dot(fwd)>0.2){ tgt=lockTarget; bd=d; }
+    }
+    if(!tgt) for(const b of bots){
+      if(!b.alive||b.team!==enemyTeam()) continue;
+      const d=b.pos.distanceTo(player.pos);
+      if(d>=bd) continue;
+      _v6.copy(b.pos).sub(player.pos).normalize();
+      if(_v6.dot(fwd)<=0.2) continue;
+      tgt=b; bd=d;
+    }
+    if(tgt){
+      // решение задачи перехвата: |R + Vrel·t| = v_пули·t (в системе стрелка)
+      const muzzle=520+player.speed; // скорость пули относительно стрелка
+      _v1.copy(tgt.pos).sub(player.pos);      // R
+      _v2.copy(tgt.vel).sub(player.vel);      // Vrel = V_цели − V_самолёта
+      const a=_v2.lengthSq()-muzzle*muzzle;
+      const bq=2*_v1.dot(_v2), c=_v1.lengthSq();
+      let t=-1;
+      if(Math.abs(a)<1e-6){ if(Math.abs(bq)>1e-9) t=-c/bq; }
+      else{
+        const D=bq*bq-4*a*c;
+        if(D>=0){
+          const s=Math.sqrt(D), t1=(-bq-s)/(2*a), t2=(-bq+s)/(2*a);
+          if(t1>0&&t2>0) t=Math.min(t1,t2);
+          else if(t1>0) t=t1; else if(t2>0) t=t2;
+        }
+      }
+      if(t>0&&t<4){
+        // точка, где цель будет через t — в экранных координатах
+        _v3.copy(tgt.pos).addScaledVector(tgt.vel,t).project(camera);
+        if(_v3.z<1&&Math.abs(_v3.x)<1.02&&Math.abs(_v3.y)<1.02){
+          show=true;
+          leadEl.style.display='block';
+          leadEl.style.left=((_v3.x*0.5+0.5)*window.innerWidth)+'px';
+          leadEl.style.top=((-_v3.y*0.5+0.5)*window.innerHeight)+'px';
+        }
+      }
+    }
+  }
+  if(!show) leadEl.style.display='none';
+}
+
+// ---- компас/радар ----
+const roseG=$('rose-g'), elHdg=$('hdg');
+(function buildRose(){
+  const NS='http://www.w3.org/2000/svg';
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6, major=i%3===0, r1=major?42:47, r2=54;
+    const l=document.createElementNS(NS,'line');
+    l.setAttribute('x1',(64+r1*Math.sin(a)).toFixed(1)); l.setAttribute('y1',(64-r1*Math.cos(a)).toFixed(1));
+    l.setAttribute('x2',(64+r2*Math.sin(a)).toFixed(1)); l.setAttribute('y2',(64-r2*Math.cos(a)).toFixed(1));
+    l.setAttribute('stroke',major?'rgba(255,207,143,.9)':'rgba(255,207,143,.4)');
+    l.setAttribute('stroke-width',major?1.6:1);
+    roseG.appendChild(l);
+  }
+  for(const t of [['С',0],['В',90],['Ю',180],['З',270]]){
+    const a=t[1]*Math.PI/180;
+    const tx=document.createElementNS(NS,'text');
+    tx.setAttribute('x',(64+32*Math.sin(a)).toFixed(1)); tx.setAttribute('y',(64-32*Math.cos(a)+4).toFixed(1));
+    tx.setAttribute('text-anchor','middle');
+    tx.setAttribute('fill',t[0]==='С'?'#ffb060':'rgba(255,207,143,.85)');
+    tx.setAttribute('font-size','11'); tx.setAttribute('font-weight','700');
+    tx.setAttribute('font-family','Consolas,Arial,sans-serif');
+    tx.textContent=t[0];
+    roseG.appendChild(tx);
+  }
+})();
+const blipEls=[];
+(function buildBlips(){
+  const NS='http://www.w3.org/2000/svg';
+  for(let i=0;i<bots.length;i++){
+    const c=document.createElementNS(NS,'circle');
+    c.setAttribute('r','2.6'); c.setAttribute('fill',bots[i].team==='blue'?'#6aaef0':'#ff5a4a'); c.style.display='none';
+    $('blips').appendChild(c); blipEls.push(c);
+  }
+})();
+
+// ---- компактный список целей ----
+const tgtRows=[];
+(function buildTgtRows(){
+  const box=$('tgt-rows');
+  for(let i=0;i<5;i++){
+    const r=document.createElement('div');
+    r.className='tgt-row'; r.style.display='none';
+    r.innerHTML='<i></i><span>Биплан</span><span class="td"></span>';
+    box.appendChild(r); tgtRows.push(r);
+  }
+})();
+
+// ================= HUD =================
+const elS=$('v-speed'), elA=$('v-alt'), elT=$('thr-fill'), elTp=$('v-thr'),
+      elH=$('hp-fill'), elHn=$('v-hp'), elM=$('missiles'), elK=$('v-kills'),
+      elF=$('flares'), elFcard=$('flr-card'), elMw=$('msl-warn'),
+      elCb=$('cobra-card'), elCbf=$('cobra-fill'),
+      elLock=$('lock-ind'), elWarn=$('warn'), elDmg=$('dmg'), elLv=$('v-lives'),
+      elRkMe=$('rk-me'), elTbB=$('tb-blue'), elTbR=$('tb-red'),
+      elTbBn=$('tb-blue-n'), elTbRn=$('tb-red-n'),
+      elG=$('v-g'), elGveil=$('gveil'), elGblack=$('gblack'), elGred=$('gred'), elGbig=$('gbig');
+const elRkB=[], elRrB=[];
+for(let i=0;i<5;i++){ elRkB.push($('rk-b'+i)); elRrB.push($('rr-b'+i)); }
+const elRkA=[], elRrA=[];
+for(let i=0;i<4;i++){ elRkA.push($('rk-a'+i)); elRrA.push($('rr-a'+i)); }
+function updateHUD(dt){
+  elS.textContent=Math.round(player.speed*3.6);
+  elA.textContent=Math.max(0,Math.round(player.pos.y));
+  elT.style.width=Math.round(player.throttle*100)+'%';
+  elTp.textContent=Math.round(player.throttle*100)+'%';
+  const hp=Math.max(0,player.hp);
+  elH.style.width=(hp/player.hpMax*100)+'%';
+  elH.style.background=hp>55?'#7ec850':hp>25?'#e0a030':'#e05038';
+  elHn.textContent=Math.ceil(hp)+' / '+player.hpMax;
+  const pips=elM.children;
+  for(let i=0;i<pips.length;i++) pips[i].classList.toggle('on', i<player.ammo);
+  $('msl-card').style.display=(PST.msl>0)?'block':'none';
+  const fpips=elF.children;
+  for(let i=0;i<fpips.length;i++) fpips[i].classList.toggle('on', i<player.flares);
+  elFcard.style.display=(player.flaresMax>0)?'block':'none';
+  elCb.style.display=(PST.prem&&PST.jet)?'block':'none'; // кобра — только Су-57
+  const cbF=(PST.prem&&PST.jet)?(player.cobraT>0?0:Math.round(clamp(1-player.cobraCd/14,0,1)*100)):0;
+  elCbf.style.width=cbF+'%';
+  elCbf.style.background=cbF>=100?'#ffd98f':'#8a6a4a';
+  elK.textContent=pKills; // личный счёт — фраги союзников и краши красных в него не идут
+  elLv.textContent=Math.max(0,playerLives);
+  elLock.style.display=(state==='play'&&lockTarget)?'block':'none';
+  // предупреждения
+  let w='';
+  if(state==='play'&&player.alive){
+    if(player.speed<PST.minSpd+5) w+='СВАЛИВАНИЕ — увеличьте тягу (Shift)<br>';
+    const agl=player.pos.y-Math.max(terrainHeight(player.pos.x,player.pos.z),-2);
+    if(agl<70) w+='ОПАСНО: РЕЛЬЕФ!<br>';
+  }
+  elWarn.style.display=w?'block':'none';
+  if(w) elWarn.innerHTML=w;
+  // ===== предупреждение о ракете: ступени 600 / 350 / 150 м, сторона, пискатор =====
+  let md=1e9, mside='';
+  if(state==='play'&&player.alive){
+    for(const m of missiles){
+      if(m.team===NET.myTeam||m.target!==player) continue;
+      const d=m.mesh.position.distanceTo(player.pos);
+      if(d<md){
+        md=d;
+        _v1.copy(m.mesh.position).sub(player.pos).applyQuaternion(_q1.copy(player.quat).invert());
+        mside=_v1.z>8?'сзади':(_v1.z<-8?'впереди':(_v1.x>4?'справа':(_v1.x<-4?'слева':'')));
+      }
+    }
+  }
+  if(md<1e9){
+    const mst=md<150?3:md<350?2:1; // 1 — обнаружение, 2 — сближение, 3 — критично
+    elMw.textContent='РАКЕТА · '+Math.max(0,Math.round(md/10)*10)+' м'+(mside?' · '+mside:'');
+    elMw.style.display='block';
+    elMw.style.opacity=0.55+0.45*Math.abs(Math.sin(time*(mst===3?14:mst===2?8:4)));
+    mslBeepT-=dt;
+    if(mslBeepT<=0){
+      AudioSys.beep(mst===3?1350:mst===2?1000:780, mst===3?0.09:0.13, mst===3?0.3:mst===2?0.24:0.18);
+      mslBeepT=mst===3?0.14:mst===2?0.32:0.6;
+    }
+  } else { elMw.style.display='none'; mslBeepT=0; }
+  // вспышка урона
+  dmgA=Math.max(0,dmgA-dt*1.6);
+  let o=dmgA;
+  if(player.alive&&player.hp<30) o=Math.max(o,0.18+0.1*Math.sin(time*6));
+  elDmg.style.opacity=o;
+  // ---- ростер команд ----
+  elRkMe.textContent=pKills; // в строке «Вы» — личный счёт
+  if(!NET.inRoom){ // онлайн: ростер рисует netUpdateRoster (ники + динамический состав)
+    for(let i=0;i<bots.length;i++){
+      if(bots[i].team!=='red') continue;
+      elRkB[i].textContent=bots[i].kills;
+      elRrB[i].classList.toggle('dead', !bots[i].alive);
+    }
+    for(let i=0;i<ALLIES.length;i++){
+      elRkA[i].textContent=ALLIES[i].kills;
+      elRrA[i].classList.toggle('dead', !ALLIES[i].alive);
+    }
+  }
+  // ---- полоски команд (обе убывают только от потерь: синие — от смертей, красные — от фрагов; респавн их не возвращает) ----
+  elTbB.style.width = (Math.max(0, NET.inRoom?NET.bl:blueLives) / 15 * 100) + '%'; // 15 = 5 синих × 3 жизни; в сети считает сервер
+  elTbBn.textContent = Math.max(0, NET.inRoom?NET.bl:blueLives);
+  elTbR.style.width = (NET.inRoom?Math.max(0,NET.rl)/15*100:Math.max(0, 100 - (kills / 15) * 100)) + '%'; // убывает только от убийств — респавн ботов не лечит полоску
+  elTbRn.textContent=NET.inRoom?Math.max(0,NET.rl):Math.max(0,15-kills); // сколько фрагов осталось до победы
+  // ---- перегрузка: индикатор G, вуаль, G-LOC, redout ----
+  elG.textContent=player.g.toFixed(1);
+  elG.classList.toggle('hot', player.g>9||player.g<0.35);
+  const aliveP=state==='play'&&player.alive;
+  elGveil.style.opacity=aliveP&&player.glocT<=0?clamp((player.g-9)/2.5,0,1):0;
+  elGred.style.opacity=aliveP&&player.glocT<=0?clamp((0.3-player.g)/3,0,0.85):0;
+  elGblack.style.opacity=player.alive?(player.glocT>0?1:player.glocT<0?1+player.glocT/1.2:0):0;
+  // крупная надпись: видно, сколько G привело к потере сознания / вуали
+  const gTxt=player.glocT>0?'ПОТЕРЯ СОЗНАНИЯ · '+player.gPk.toFixed(1)+'G':player.glocT<0?player.gPk.toFixed(1)+' G':(aliveP&&(player.g>9||player.g<0.35))?player.g.toFixed(1)+' G':'';
+  elGbig.textContent=gTxt;
+  elGbig.style.opacity=gTxt?1:0;
+  // ---- компас/радар ----
+  if(player.alive){
+    _v5.copy(FWD).applyQuaternion(player.quat);
+    const hdg=(Math.atan2(_v5.x,-_v5.z)*57.2958+360)%360; // 0 — север
+    roseG.setAttribute('transform','rotate('+(-hdg).toFixed(1)+' 64 64)');
+    elHdg.textContent=String(Math.round(hdg)%360).padStart(3,'0')+'°';
+    for(let i=0;i<bots.length&&i<blipEls.length;i++){
+      const b=bots[i], c=blipEls[i];
+      if(!b.alive){ c.style.display='none'; continue; }
+      const dx=b.pos.x-player.pos.x, dz=b.pos.z-player.pos.z;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      const rel=Math.atan2(dx,-dz)-hdg/57.2958; // пеленг относительно курса
+      const rr=Math.min(dist/9000,1)*52;
+      c.setAttribute('cx',(64+Math.sin(rel)*rr).toFixed(1));
+      c.setAttribute('cy',(64-Math.cos(rel)*rr).toFixed(1));
+      c.setAttribute('fill', b.team==='blue'?'#6aaef0':(b===lockTarget?'#ffd24a':'#ff5a4a'));
+      c.style.display='block';
+    }
+  } else {
+    for(const c of blipEls) c.style.display='none';
+    elHdg.textContent='---';
+  }
+  // ---- компактный список целей ----
+  const ET2=enemyTeam();
+  const sortedT=bots.filter(b=>b.alive&&b.team===ET2)
+    .sort((a,b)=>a.pos.distanceToSquared(player.pos)-b.pos.distanceToSquared(player.pos));
+  for(let i=0;i<tgtRows.length;i++){
+    const row=tgtRows[i];
+    if(state!=='play'||!player.alive||i>=sortedT.length){ row.style.display='none'; continue; }
+    const b=sortedT[i], d=b.pos.distanceTo(player.pos);
+    row.style.display='flex';
+    row.classList.toggle('lock', b===lockTarget);
+    row.children[1].textContent=b.pst?b.pst.name:'Биплан'; // тип цели — самолёт её ранга
+    row.lastElementChild.textContent=d<1000?Math.round(d)+' м':(d/1000).toFixed(1)+' км';
+  }
+}
+
+// ================= УПРАВЛЕНИЕ ИГРОЙ =================
+function startGame(){
+  applyPlayerPlane(); setupTiers(); battlePay={money:0,xp:0}; // новый бой: самолёт из ангара, свежий состав рангов
+  player.pos.set(0,300,0);
+  player.quat.set(0,0,0,1);
+  player.speed=Math.round(PST.maxSpd*0.65); player.throttle=0.65; player.hp=PST.hp; player.alive=true;
+  for(const b of bots){ b.lives=3; resetBot(b); } // после setupTiers модели новые — расставить ботов заново (иначе они в (0,0,0) и крашатся)
+  state='play';
+  $('ov-start').classList.add('hidden');
+  $('sun-egg').style.display='none'; // солнце-секрет — только в меню
+  $('hud').classList.add('on');
+  camQ.copy(player.quat); camInit=false;
+  mouseDown=false; zoomHeld=false; lastMX=null; lastMY=null;
+  toast('В бой! Мышь — управление, ЛКМ — огонь');
+  AudioSys.init();
+  tryLock();
+}
+function restart(){
+  applyPlayerPlane(); setupTiers(); battlePay={money:0,xp:0}; // новый вылет: свежий состав рангов и кошелёк боя
+  player.pos.set(0,300,0);
+  player.quat.set(0,0,0,1);
+  player.speed=Math.round(PST.maxSpd*0.65); player.throttle=0.65; player.hp=PST.hp; player.alive=true;
+  player.ammo=PST.msl; player.ammoT=0; player.cdM=0; player.cd=0; player.lastHit=99; player.smokeT=0;
+  player.flares=player.flaresMax; player.flareCd=0; // ловушки — полный комплект
+  player.cobraT=0; player.cobraCd=0; player.cobraP=0; // кобра — чистый лист
+  player.g=1; player.glocT=0; player.trailT=0;
+  player.mesh.visible=true;
+  for(const b of bullets){ b.on=false; b.mesh.visible=false; }
+  for(const m of missiles) scene.remove(m.mesh);
+  missiles.length=0;
+  for(const f of flaresArr){ f.alive=false; f.spr.visible=false; } // гасим ловушки
+  for(const p of parts){ p.on=false; p.spr.visible=false; }
+  for(const b of boomLights){ b.t=0; b.l.visible=false; }
+  for(const b of bots){ b.lives=3; resetBot(b); }
+  playerLives=3; blueLives=15;
+  kills=0; pKills=0; camShake=0; dmgA=0; respawnQ.length=0; warnFlags={};
+  battlePay={money:0,xp:0}; // новый бой — новый кошелёк
+  lockTarget=null; deadShown=false; lastKiller=null;
+  mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null;
+  camQ.copy(player.quat); camInit=false;
+  $('ov-death').classList.add('hidden');
+  $('hud').classList.add('on');
+  state='play';
+  toast('Новый вылет!');
+  tryLock();
+}
+function togglePause(){
+  if(NET.inRoom){ // онлайн: паузы нет — бой продолжается, отключаем только управление
+    if(!NET.idle){
+      NET.idle=true;
+      $('pause-hint').textContent='Онлайн: бой продолжается без вас! Клик или Esc — вернуться';
+      $('ov-pause').classList.remove('hidden');
+      mouseDown=false;
+    } else {
+      NET.idle=false; $('ov-pause').classList.add('hidden'); clock.getDelta();
+      lastMX=null; lastMY=null;
+      tryLock();
+    }
+    return;
+  }
+  if(state==='play'){
+    state='pause'; $('ov-pause').classList.remove('hidden');
+    mouseDown=false;
+  } else if(state==='pause'){
+    state='play'; $('ov-pause').classList.add('hidden'); clock.getDelta();
+    lastMX=null; lastMY=null;
+    tryLock();
+  }
+}
+function returnToMenu(){
+  state='menu';
+  updateMenuWallet(); // после боя деньги/опыт изменились — обновить строку в меню
+  $('ov-pause').classList.add('hidden');
+  $('ov-death').classList.add('hidden');
+  $('ov-victory').classList.add('hidden');
+  $('hud').classList.remove('on');
+  $('ov-start').classList.remove('hidden'); // показываем стартовое меню
+  if(document.pointerLockElement) document.exitPointerLock();
+  // сброс камеры и самолёта в исходное состояние для меню
+  player.pos.set(0,300,0);
+  player.quat.set(0,0,0,1);
+  camQ.copy(player.quat); camInit=false;
+  // тихий сброс боя: без него «ВЗЛЕТЕТЬ» продолжил бы прошлый вылет (hp/фраги/боты/снаряды)
+  player.alive=true; player.hp=PST.hp; player.speed=Math.round(PST.maxSpd*0.65); player.throttle=0.65;
+  player.g=1; player.glocT=0; player.gPk=1; player.lastHit=99; player.smokeT=0; player.trailT=0;
+  player.mesh.visible=true;
+  for(const b of bullets){ b.on=false; b.mesh.visible=false; }
+  for(const m of missiles) scene.remove(m.mesh);
+  missiles.length=0;
+  for(const f of flaresArr){ f.alive=false; f.spr.visible=false; } // гасим ловушки
+  for(const p of parts){ p.on=false; p.spr.visible=false; }
+  for(const b of boomLights){ b.t=0; b.l.visible=false; }
+  for(const b of bots){ b.lives=3; resetBot(b); }
+  playerLives=3; blueLives=15;
+  kills=0; pKills=0; camShake=0; dmgA=0; respawnQ.length=0; warnFlags={};
+  battlePay={money:0,xp:0}; // новый бой — новый кошелёк
+  lockTarget=null; deadShown=false; lastKiller=null;
+  mAccX=0; mAccY=0; mFltX=0; mFltY=0; lastMX=null; lastMY=null;
+  mouseDown=false; zoomHeld=false;
+}
+function showVictory(){
+  state='win';
+  $('victory-kills').textContent=kills;
+  const r=applyRewards(true); // бой окончен — выдаём заработанное
+  $('victory-pay').textContent='Заработано: '+r.money.toLocaleString('ru-RU')+' ₽ · +'+r.xp+' опыта';
+  $('ov-victory').classList.remove('hidden');
+  $('hud').classList.remove('on');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function showDeath(){
+  $('death-title').textContent='ВЫ ПРОИГРАЛИ'; // оверлей показывается только когда жизни кончились
+  $('death-kills').textContent=kills;
+  const r=applyRewards(false); // поражение — только за участие и фраги
+  $('death-pay').textContent='Заработано: '+r.money.toLocaleString('ru-RU')+' ₽ · +'+r.xp+' опыта';
+  $('death-by').textContent=lastKiller?('Вас сбил: '+lastKiller):'Самолёт разбился';
+  $('ov-death').classList.remove('hidden');
+  $('hud').classList.remove('on');
+}
+// ================= АНГАР =================
+function fmtMoney(n){ return n.toLocaleString('ru-RU')+' ₽'; }
+function updateMenuWallet(){
+  $('menu-wallet').textContent='В ангаре: '+PLANES.find(p=>p.id===PROG.sel).name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
+}
+function updateWallet(){
+  $('w-money').textContent=fmtMoney(PROG.money);
+  $('w-xp').textContent=PROG.xp+' опыта';
+  updateMenuWallet();
+}
+function renderHangar(){
+  updateWallet();
+  let html='';
+  for(let t=1;t<=TIER_ROMAN.length;t++){
+    html+='<div class="tier-h">РАНГ '+TIER_ROMAN[t-1]+'</div>';
+    for(const p of PLANES.filter(x=>x.tier===t)){
+      const owned=PROG.owned.includes(p.id), sel=PROG.sel===p.id;
+      let btn;
+      if(sel) btn='<button class="pc-btn" disabled>ВЫБРАН ✓</button>';
+      else if(owned) btn='<button class="pc-btn owned" data-act="sel" data-id="'+p.id+'">ВЫБРАТЬ</button>';
+      else if(p.prem) btn='<button class="pc-btn" disabled>ТРЕБУЕТСЯ КОД</button>'; // премиум не продаётся
+      else btn='<button class="pc-btn" data-act="buy" data-id="'+p.id+'" '+(PROG.money<p.cost?'disabled':'')+'>КУПИТЬ · '+fmtMoney(p.cost)+'</button>';
+      html+='<div class="plane-card'+(sel?' sel':'')+(p.prem?' prem':'')+'">'
+        +'<div class="tier-badge'+(p.prem?' prem':'')+'">'+TIER_ROMAN[t-1]+'</div>'
+        +'<div class="pc-main"><div class="pc-name">'+p.name+(p.prem?'<span class="prem-tag">ПРЕМИУМ</span>':'')+'</div>'
+        +'<div class="pc-spec">'+(p.kph||Math.round(p.maxSpd*3.6))+' км/ч · '+p.hp+' HP · '+p.guns+' · урон '+p.dmg+'</div></div>'
+        +btn+'</div>';
+    }
+  }
+  $('hangar-list').innerHTML=html;
+  // блок улучшений выбранного самолёта
+  const p=PLANES.find(x=>x.id===PROG.sel), u=PROG.upg[p.id];
+  let uh='<div class="upg-title">УЛУЧШЕНИЯ — '+p.name.toUpperCase()+' (опыт общий, '+PROG.xp+' доступно)</div>';
+  for(const br of UPG_BRANCHES){
+    const lvl=u[br.id], max=lvl>=5, cost=max?0:UPG_COST[lvl];
+    let pips=''; for(let i=0;i<5;i++) pips+='<div class="pip'+(i<lvl?' on':'')+'"></div>';
+    uh+='<div class="upg-row"><div class="upg-name">'+br.name+'<small>'+br.hint+'</small></div>'
+      +'<div class="pips">'+pips+'</div>'
+      +'<div class="upg-cost">'+(max?'МАКСИМУМ':cost+' опыта')+'</div>'
+      +'<button class="upg-btn" data-act="upg" data-br="'+br.id+'" '+((max||PROG.xp<cost)?'disabled':'')+'>УЛУЧШИТЬ</button></div>';
+  }
+  $('upg-box').innerHTML=uh;
+}
+  $('hangar-list').addEventListener('click', e=>{
+  const btn=e.target.closest('button[data-act]'); if(!btn) return;
+  const id=btn.dataset.id, p=PLANES.find(x=>x.id===id);
+  if(NET.authed){ // сетевой профиль: магазин через сервер (деньги/владение проверяет БД)
+    NET.sock.emit('shop',{act:btn.dataset.act,id},r=>{
+      if(r&&r.ok){ NET.applyProfile(r.profile); toast(btn.dataset.act==='buy'?p.name+' — куплен и выбран!':p.name+' — выбран'); }
+      else toast((r&&r.err)||'Отказ');
+    });
+    return;
+  }
+  if(btn.dataset.act==='buy'&&p&&!p.prem&&PROG.money>=p.cost){ // премиум не продаётся — только по коду
+    PROG.money-=p.cost; PROG.owned.push(id); PROG.sel=id; saveProg();
+    toast(p.name+' — куплен и выбран!');
+    renderHangar();
+  } else if(btn.dataset.act==='sel'&&p){
+    PROG.sel=id; saveProg();
+    renderHangar();
+  }
+});
+$('upg-box').addEventListener('click', e=>{
+  const btn=e.target.closest('button[data-act="upg"]'); if(!btn) return;
+  const br=btn.dataset.br, u=PROG.upg[PROG.sel], lvl=u[br];
+  if(lvl>=5||PROG.xp<UPG_COST[lvl]) return;
+  if(NET.authed){ // улучшения сетевого профиля — через сервер
+    NET.sock.emit('shop',{act:'upg',br},r=>{
+      if(r&&r.ok){ NET.applyProfile(r.profile); toast(UPG_BRANCHES.find(b=>b.id===br).name+': уровень '+r.profile.upg[PROG.sel][br]); }
+      else toast((r&&r.err)||'Отказ');
+    });
+    return;
+  }
+  PROG.xp-=UPG_COST[lvl]; u[br]=lvl+1; saveProg();
+  toast(UPG_BRANCHES.find(b=>b.id===br).name+': уровень '+(lvl+1));
+  renderHangar();
+});
+$('btn-hangar').addEventListener('click', ()=>{ renderHangar(); $('ov-hangar').classList.remove('hidden'); });
+$('btn-hangar-close').addEventListener('click', ()=>{ $('ov-hangar').classList.add('hidden'); updateMenuWallet(); });
+
+// ================= СЕКРЕТ: СОЛНЦЕ В МЕНЮ + КОД -> Су-57 (премиум) =================
+let sunT=14, sunShownT=0; // солнце появляется в меню каждые ~25-40 с и висит 10 с
+function updateSunEgg(dt){
+  const el=document.getElementById('sun-egg');
+  if(PROG.owned.includes('su57')){ el.style.display='none'; return; } // секрет разоблачён — солнце больше не подсказывает
+  if(sunShownT>0){
+    sunShownT-=dt;
+    if(sunShownT<=0){ el.style.display='none'; sunT=rand(24,38); }
+  } else {
+    sunT-=dt;
+    if(sunT<=0){ el.style.display='block'; sunShownT=10; }
+  }
+}
+function openCodeModal(){
+  $('code-form').style.display=(PROG.prem?'none':'block');
+  $('code-success').style.display=(PROG.prem?'block':'none');
+  $('code-msg').textContent='';
+  $('code-input').value='';
+  $('ov-code').classList.remove('hidden');
+  if(!PROG.prem) setTimeout(()=>{ try{ $('code-input').focus(); }catch(e){} },60);
+}
+function closeCodeModal(){ $('ov-code').classList.add('hidden'); }
+function codeSubmit(){ // код нечувствителен к регистру
+  const v=($('code-input').value||'').trim().toLowerCase();
+  if(NET.authed){ // сетевой профиль: премиум выдаёт сервер
+    NET.sock.emit('shop',{act:'prem',code:v},r=>{
+      if(r&&r.ok){ $('code-form').style.display='none'; $('code-success').style.display='block'; NET.applyProfile(r.profile); }
+      else $('code-msg').textContent=(r&&r.err)||'Неверный код. Следи за небом в меню…';
+    });
+    return;
+  }
+  if(v==='meosan'){
+    PROG.prem=true; saveProg();
+    $('code-form').style.display='none';
+    $('code-success').style.display='block';
+  } else {
+    $('code-msg').textContent='Неверный код. Следи за небом в меню…';
+  }
+}
+$('sun-egg').addEventListener('click', openCodeModal);
+$('btn-code-ok').addEventListener('click', codeSubmit);
+$('code-input').addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Enter') codeSubmit(); }); // Enter в поле не запускает бой
+$('btn-get-prem').addEventListener('click', ()=>{
+  if(!NET.authed&&!PROG.owned.includes('su57')){ // офлайн: локальная выдача (в сети su57 добавляет сервер)
+    PROG.owned.push('su57');
+    if(!PROG.upg['su57']) PROG.upg['su57']={eng:0,dur:0,hdl:0,gun:0};
+    saveProg();
+    toast('Су-57 добавлен в ангар!');
+    updateMenuWallet();
+  }
+  closeCodeModal();
+});
+$('ov-code').addEventListener('click', e=>{ if(e.target.id==='ov-code') closeCodeModal(); });
+$('btn-prog-reset').addEventListener('click', ()=>{
+  if(!confirm('Сбросить весь прогресс: деньги, опыт, самолёты и улучшения?')) return;
+  try{ localStorage.removeItem(PROG_KEY); }catch(e){}
+  PROG={money:1000, xp:0, owned:['po2'], sel:'po2', upg:{}};
+  loadProg(); saveProg();
+  applyPlayerPlane(); setupTiers();
+  renderHangar();
+  toast('Прогресс сброшен');
+});
+updateMenuWallet();
+
+$('btn-start').addEventListener('click', startGame);
+$('btn-again').addEventListener('click', ()=>{ if(NET.inRoom){ $('ov-death').classList.add('hidden'); $('hud').classList.add('on'); return; } restart(); });
+$('btn-victory').addEventListener('click', ()=>{ $('ov-victory').classList.add('hidden'); if(NET.inRoom){ $('hud').classList.add('on'); return; } restart(); });
+$('btn-menu-pause').addEventListener('click', e=>{ e.stopPropagation(); if(NET.inRoom){ netLeave(); return; } returnToMenu(); }); // stopPropagation: клик по оверлею паузы иначе возобновил бы бой
+$('btn-menu-death').addEventListener('click', ()=>{ if(NET.inRoom){ netLeave(); return; } returnToMenu(); });
+$('btn-menu-victory').addEventListener('click', ()=>{ if(NET.inRoom){ netLeave(); return; } returnToMenu(); });
+$('ov-pause').addEventListener('click', ()=>{ if(NET.inRoom){ if(NET.idle) togglePause(); return; } if(state==='pause'){ togglePause(); tryLock(); } });
+
+// ================= ГЛАВНЫЙ ЦИКЛ =================
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  if(state==='win') return; // победа — игра остановлена, последний кадр остаётся под оверлеем
+  if(state!=='pause'){
+    time+=dt;
+    if(state==='menu'){ updateMenuPilot(dt); updateSunEgg(dt); }
+    else{ // игровая симуляция — в меню не выполняется
+      if(state==='play'){ updatePlayer(dt); computeLock(); }
+      else if(state==='dead'){
+        deathT+=dt;
+        if(deathT>1.4&&!deadShown){ deadShown=true; if(playerLives>0) respawnPlayer(); else showDeath(); } // жизнь есть — возрождение, нет — поражение
+      }
+      if(kills>=15 && state==='play'){ showVictory(); return; } // победа — выходим из кадра до обновлений
+      updateBots(dt);
+      updateBullets(dt);
+      updateMissiles(dt);
+      updateParticles(dt);
+      updateFlares(dt);
+      updateBoomLights(dt);
+    }
+    // облака дрейфуют вокруг игрока
+    for(const c of clouds){
+      if(c.position.x-player.pos.x>14000) c.position.x-=28000;
+      if(c.position.x-player.pos.x<-14000) c.position.x+=28000;
+      if(c.position.z-player.pos.z>14000) c.position.z-=28000;
+      if(c.position.z-player.pos.z<-14000) c.position.z+=28000;
+    }
+    sky.position.copy(camera.position);
+    sun.position.copy(camera.position).addScaledVector(SUN_DIR,14000);
+    player.prop.rotation.z+=(4+player.throttle*42)*dt;
+    const pAb=player.mesh.userData.ab; // форсаж реактивных — мерцает от тяги (массив пламён)
+    if(pAb) for(const f of pAb){ f.material.opacity=0.22+player.throttle*0.24+Math.random()*0.2; f.scale.y=0.8+player.throttle*0.5+Math.random()*0.3; }
+    AudioSys.engine(player.alive, player.speed, player.throttle, player.g);
+    updateCamera(dt);
+    updateHUD(dt);
+    updateBrackets();
+    updateLead();
+    camShake*=Math.exp(-dt*3.5);
+  }
+  renderer.render(scene,camera);
+}
+animate();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+})();
+
+</script>
+</body>
+</html>

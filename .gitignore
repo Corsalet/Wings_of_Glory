@@ -1,0 +1,47 @@
+# dependencies & build
+node_modules/
+.next/
+out/
+build/
+coverage/
+
+# env & secrets
+.env*
+*.pem
+
+# databases & runtime data
+db/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+mini-services/*/data/
+*.pid
+*.log
+server.log
+
+# dev artifacts (screenshots, test hooks, tool cache)
+/scripts/
+/tests/
+/tool-results/
+/upload/
+/examples/
+
+# download: keep only the game source file
+/download/*
+!/download/wings_of_glory.html
+
+# environment-specific
+.zscripts/
+.z-ai-config
+.claude
+/skills/
+Caddyfile
+prompt
+test
+local-*
+
+# misc
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
