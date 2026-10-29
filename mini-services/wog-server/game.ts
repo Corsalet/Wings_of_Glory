@@ -27,7 +27,7 @@ interface Ent {
   burst?: number; gunT?: number; attackT?: number; threatT?: number; evadeDir?: Vector3;
   orbitA?: number; orbitDir?: number; mslAmmo?: number; mslCd?: number;
   flares?: number; flareCd?: number; cobraN?: number; cobraCd?: number;
-  deathT?: number; tgtId?: string | null;
+  deathT?: number; tgtId?: string | null; wingOff?: Vector3;
 }
 interface Mis { id: string; team: Team; sid: string; tid: string | null; pos: Vector3; dir: Vector3; speed: number; life: number }
 interface Flare { id: string; pos: Vector3; vel: Vector3; life: number }
@@ -48,16 +48,16 @@ const teamAnchor = (team: Team, out: Vector3) => {
   return out;
 };
 const BASE: Record<Team, Vector3> = { blue: V3(0, 0, -2400), red: V3(0, 0, 2400) };
-// 9 расставленных вручную слотов с попарной дистанцией ≥ 270 м — раньше вся пятёрка валилась
+// 9 расставленных вручную слотов с попарной дистанцией ≥ 440 м — раньше вся пятёрка валилась
 // в кучу ±250 м вокруг базы, и подлетевшего игрока закидывало залпом из 3–4 ракет сразу.
 const SPAWN_SLOTS: [number, number][] = [
-  [0, 0], [-420, -180], [420, 180], [-300, 320], [300, -320],
-  [0, -440], [-560, 60], [560, -60], [150, 460]
+  [0, 0], [-672, -288], [672, 288], [-480, 512], [480, -512],
+  [0, -704], [-896, 96], [896, -96], [240, 736]
 ];
 const slotCursor: Record<Team, number> = { blue: 0, red: 0 };
 function baseSpawn(e: Ent) {
   const b = BASE[e.team];
-  // берём первый слот без своих живых ближе 260 м; если всё занято — самый дальний от соседей
+  // берём первый слот без своих живых ближе 400 м; если всё занято — самый дальний от соседей
   let si = 0, bestD = -1;
   for (let t = 0; t < SPAWN_SLOTS.length; t++) {
     const i = (slotCursor[e.team] + t) % SPAWN_SLOTS.length;
@@ -68,7 +68,7 @@ function baseSpawn(e: Ent) {
       const d = Math.sqrt(dx * dx + dz * dz);
       if (d < dmin) dmin = d;
     }
-    if (dmin >= 260) { si = i; break; }
+    if (dmin >= 400) { si = i; break; }
     if (dmin > bestD) { bestD = dmin; si = i; }
   }
   slotCursor[e.team] = (si + 1) % SPAWN_SLOTS.length;
@@ -110,7 +110,8 @@ function makeBot(team: Team): Ent {
     burst: 0, gunT: 0, attackT: rand(0.5, 2.2), threatT: 0, evadeDir: V3(),
     orbitA: rand(0, Math.PI * 2), orbitDir: Math.random() < 0.5 ? -1 : 1,
     mslAmmo: pst.msl, mslCd: rand(5, 9), flares: pst.jet ? 3 : 0, flareCd: rand(1, 3),
-    cobraN: pst.prem ? 2 : 0, cobraCd: 0, deathT: 0, tgtId: null
+    cobraN: pst.prem ? 2 : 0, cobraCd: 0, deathT: 0, tgtId: null,
+    wingOff: V3(rand(-320, 320), rand(-60, 120), rand(-320, 320))
   };
   baseSpawn(e);
   return e;
@@ -382,6 +383,9 @@ function updateBot(b: Ent, dt: number) {
     target.y = b.pos.y + 420;
   } else if (engage && T && botFront(b, T)) {
     target.copy(T.pos).addScaledVector(T.vel, distT / 430 * 0.8);
+    // эшелон подхода: все преследуют одну цель и по пути сваливаются в стаю.
+    // Смещение своё у каждого и тает с приближением — внутри 400 м чистая погоня.
+    if (b.wingOff && distT > 400) target.addScaledVector(b.wingOff, Math.min(1, (distT - 400) / 1100));
   } else if (b.threatT! > 0) {
     target.copy(b.pos).addScaledVector(b.evadeDir!, 600);
   } else {
@@ -489,7 +493,7 @@ function tick() {
       if (e.deathT <= 0) {
         e.alive = true; e.hp = e.hpMax;
         // mslCd тоже откладываем: свежевоскресший бот не должен пускать ракету мгновенно
-        if (e.kind === 'bot') { e.mslAmmo = e.pst.msl; e.mslCd = rand(6, 11); e.flares = e.pst.jet ? 3 : 0; e.cobraN = e.pst.prem ? 2 : 0; e.burst = 0; e.threatT = 0; }
+        if (e.kind === 'bot') { e.mslAmmo = e.pst.msl; e.mslCd = rand(6, 11); e.flares = e.pst.jet ? 3 : 0; e.cobraN = e.pst.prem ? 2 : 0; e.burst = 0; e.threatT = 0; e.wingOff = V3(rand(-320, 320), rand(-60, 120), rand(-320, 320)); }
         baseSpawn(e);
         io.emit('respawn', respawnDto(e));
       }

@@ -935,6 +935,7 @@ const GUNS = [V3(-0.35,0.55,-2.9), V3(0.35,0.55,-2.9)];
 const bots = [];
 function resetBot(b){
   const bp=b.pst||planeStatsBot(PLANES.find(p=>p.tier===3)); // до первого setupTiers — ранг III
+  b.wingOff=V3(rand(-320,320),rand(-60,120),rand(-320,320)); // своё боковое смещение для эшелона подхода
   if(b.team==='blue'){ // ведомый: появляется в строю рядом с игроком
     _v1.copy(FWD).applyQuaternion(player.quat); _v1.y=0; _v1.normalize();
     _v2.set(_v1.z,0,-_v1.x); // горизонтальный перпендикуляр
@@ -2215,6 +2216,8 @@ function updateBots(dt){
       target.y=b.pos.y+420;
     } else if(engage&&botFront(b,T)){ // атака цели с упреждением
       target.copy(T.pos).addScaledVector(T.vel, distT/430*0.8);
+      // эшелон подхода: смещение своё у каждого, тает с приближением — внутри 400 м чистая погоня
+      if(b.wingOff&&distT>400) target.addScaledVector(b.wingOff, Math.min(1,(distT-400)/1100));
     } else if(b.threatT>0){ // уклонение
       target.copy(b.pos).addScaledVector(b.evadeDir,600);
     } else if(b.team==='blue'){ // ведомый: место в строю рядом с игроком
