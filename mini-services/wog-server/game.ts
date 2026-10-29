@@ -48,9 +48,31 @@ const teamAnchor = (team: Team, out: Vector3) => {
   return out;
 };
 const BASE: Record<Team, Vector3> = { blue: V3(0, 0, -2400), red: V3(0, 0, 2400) };
+// 9 расставленных вручную слотов с попарной дистанцией ≥ 270 м — раньше вся пятёрка валилась
+// в кучу ±250 м вокруг базы, и подлетевшего игрока закидывало залпом из 3–4 ракет сразу.
+const SPAWN_SLOTS: [number, number][] = [
+  [0, 0], [-420, -180], [420, 180], [-300, 320], [300, -320],
+  [0, -440], [-560, 60], [560, -60], [150, 460]
+];
+const slotCursor: Record<Team, number> = { blue: 0, red: 0 };
 function baseSpawn(e: Ent) {
   const b = BASE[e.team];
-  e.pos.set(b.x + rand(-250, 250), 0, b.z + rand(-250, 250));
+  // берём первый слот без своих живых ближе 260 м; если всё занято — самый дальний от соседей
+  let si = 0, bestD = -1;
+  for (let t = 0; t < SPAWN_SLOTS.length; t++) {
+    const i = (slotCursor[e.team] + t) % SPAWN_SLOTS.length;
+    let dmin = 1e9;
+    for (const o of ents) {
+      if (o === e || !o.alive || o.team !== e.team) continue;
+      const dx = o.pos.x - (b.x + SPAWN_SLOTS[i][0]), dz = o.pos.z - (b.z + SPAWN_SLOTS[i][1]);
+      const d = Math.sqrt(dx * dx + dz * dz);
+      if (d < dmin) dmin = d;
+    }
+    if (dmin >= 260) { si = i; break; }
+    if (dmin > bestD) { bestD = dmin; si = i; }
+  }
+  slotCursor[e.team] = (si + 1) % SPAWN_SLOTS.length;
+  e.pos.set(b.x + SPAWN_SLOTS[si][0] + rand(-55, 55), 0, b.z + SPAWN_SLOTS[si][1] + rand(-55, 55));
   e.pos.y = Math.max(terrainHeight(e.pos.x, e.pos.z), -2) + rand(550, 750);
   const yaw = e.team === 'blue' ? Math.PI : 0; // синие смотрят на красных и наоборот
   e.quat.setFromAxisAngle(AY, yaw);
@@ -401,9 +423,18 @@ function updateBot(b: Ent, dt: number) {
       _v3.copy(T.pos).sub(b.pos).normalize();
       const ally = b.team === 'blue';
       if (_v5.dot(_v3) > (ally ? 0.94 : 0.93)) {
-        spawnMissile(b, T.id);
-        b.mslAmmo!--;
-        b.mslCd = ally ? rand(11, 16) : rand(9, 14);
+        // залп-лимит: не больше 2 красных ракет в воздухе на одну цель —
+        // иначе куча у базы пускала 3–4 ракеты одновременно, уйти было невозможно
+        if (!ally) {
+          let inAir = 0;
+          for (const m of missiles) if (m.team === 'red' && m.tid === T.id && m.life > 3) inAir++;
+          if (inAir >= 2) { b.mslCd = rand(1.6, 3.2); }
+          else { spawnMissile(b, T.id); b.mslAmmo!--; b.mslCd = rand(9, 14); }
+        } else {
+          spawnMissile(b, T.id);
+          b.mslAmmo!--;
+          b.mslCd = rand(11, 16);
+        }
       }
     }
   }
@@ -457,7 +488,8 @@ function tick() {
       e.deathT -= dt;
       if (e.deathT <= 0) {
         e.alive = true; e.hp = e.hpMax;
-        if (e.kind === 'bot') { e.mslAmmo = e.pst.msl; e.flares = e.pst.jet ? 3 : 0; e.cobraN = e.pst.prem ? 2 : 0; e.burst = 0; e.threatT = 0; }
+        // mslCd тоже откладываем: свежевоскресший бот не должен пускать ракету мгновенно
+        if (e.kind === 'bot') { e.mslAmmo = e.pst.msl; e.mslCd = rand(6, 11); e.flares = e.pst.jet ? 3 : 0; e.cobraN = e.pst.prem ? 2 : 0; e.burst = 0; e.threatT = 0; }
         baseSpawn(e);
         io.emit('respawn', respawnDto(e));
       }

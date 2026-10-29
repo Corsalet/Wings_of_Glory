@@ -948,8 +948,17 @@ function resetBot(b){
     b.mslAmmo=bp.msl||0; b.mslCd=rand(5,9); b.flares=bp.jet?3:0; b.flareCd=rand(1,3); b.cobraN=bp.prem?2:0; b.cobraCd=0; // ракеты/ловушки/кобра ботов — на каждую жизнь
     return;
   }
-  const a=rand(0,Math.PI*2), r=rand(4000,5200); // спавн красных в 4–5.2 км от игрока
-  b.pos.set(player.pos.x+Math.cos(a)*r, 0, player.pos.z+Math.sin(a)*r);
+  // спавн красных в 4–5.2 км от игрока + рассредоточение: минимум ~650 м между красными,
+  // иначе пара ботов могла материализоваться нос к носу и навешивать ракеты кучей
+  let ax=0, az=0;
+  for(let t=0;t<12;t++){
+    const a=rand(0,Math.PI*2), r=rand(4000,5200);
+    ax=player.pos.x+Math.cos(a)*r; az=player.pos.z+Math.sin(a)*r;
+    let ok=true;
+    for(const o of bots){ if(o!==b&&o.team==='red'&&o.alive){ const dx=o.pos.x-ax, dz=o.pos.z-az; if(dx*dx+dz*dz<422500){ ok=false; break; } } }
+    if(ok) break;
+  }
+  b.pos.set(ax, 0, az);
   b.pos.y = Math.max(player.pos.y+rand(-80,350), Math.max(terrainHeight(b.pos.x,b.pos.z),-2)+230);
   b.hp=bp.hp; b.alive=true; b.mesh.visible=true; b.speed=rand(bp.maxSpd*0.72,bp.maxSpd*0.85);
   b.burst=0; b.threatT=0; b.attackT=rand(0.5,2.2); b.orbitA=rand(0,Math.PI*2);
@@ -2256,7 +2265,12 @@ function updateBots(dt){
         _v5.copy(FWD).applyQuaternion(b.quat);
         _v6.copy(T.pos).sub(b.pos).normalize();
         const ally=b.team==='blue'; // союзники дисциплинированнее: строже конус, дольше перезарядка
-        if(_v5.dot(_v6)>(ally?0.94:0.93)){ botMissile(b,T); b.mslAmmo--; b.mslCd=ally?rand(11,16):rand(9,14); }
+        if(_v5.dot(_v6)>(ally?0.94:0.93)){
+          // залп-лимит: не больше 2 красных ракет в воздухе на одну цель — как на сервере
+          let launch=true;
+          if(!ally){ let inAir=0; for(const ms of missiles) if(ms.team==='red'&&ms.target===T&&ms.life>3) inAir++; if(inAir>=2){ launch=false; b.mslCd=rand(1.6,3.2); } }
+          if(launch){ botMissile(b,T); b.mslAmmo--; b.mslCd=ally?rand(11,16):rand(9,14); }
+        }
       }
     }
     // ===== тепловые ловушки ботов: автоматический отвод ракет (окно 140–600 м) =====
