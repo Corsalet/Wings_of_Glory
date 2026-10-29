@@ -1021,6 +1021,8 @@ const NET={
     PROG.prem=!!p.prem;
     if(state==='menu'){ applyPlayerPlane(); setupTiers(); }
     updateMenuWallet();
+    netPilotLine(); // строка «Пилот: … · самолёт · деньги · опыт» — раньше обновлялась только при логине,
+    // и после боя/покупки/кода в ней висели старые значения (По-2 · 1000 ₽ при реальном Су-57 · 2770 ₽)
   }
 };
 const NET_TOKEN_KEY='wog_token';
@@ -2346,8 +2348,13 @@ function updatePlayer(dt){
   const wP=clamp(player.ctrl.p*1.35*PST.turn*auth,-1.5,1.5);
   const wR=clamp(player.ctrl.r*2.5*PST.turn*auth,-1.5,1.5);
   const wY=clamp(player.ctrl.y*0.78*PST.turn*auth,-1.5,1.5);
-  // ===== ПЕРЕГРУЗКА: G = 1 + |V·ω(тангаж)| / 16.0 =====
-  const gT=1+Math.abs(player.speed*wP)/16.0; // модуль — без отрицательной перегрузки; /16 — G растёт чуть медленнее
+  // ===== ПЕРЕГРУЗКА: G = 1 + |V·ω(тангаж)| / D =====
+  // D масштабируется от макс. скорости самолёта: на Су-57 (maxSpd 124) полный валик на максимальной
+  // скорости давал 12.6G — вуаль глухо перекрывала экран и срабатывал блэкаут почти на каждом манёвре.
+  // Теперь у ЛЮБОЙ машины полный валик на её максимальной скорости ≈ 10.4G (поршневые не тронуты:
+  // у них D остаётся 16, как и было). Реакция та же: держишь полный валик на предале — теряешь сознание.
+  const gD=Math.max(16, PST.maxSpd*0.16);
+  const gT=1+Math.abs(player.speed*wP)/gD; // модуль — без отрицательной перегрузки
   player.g+=(gT-player.g)*(1-Math.exp(-dt*3.5)); // медленнее набирается — краткий рывок не «в темноту»
   if(player.glocT>0){ player.glocT-=dt; if(player.glocT<=0) player.glocT=-0.001; } // фаза блэкаута
   else if(player.glocT<0){ player.glocT-=dt; if(player.glocT<-1.2) player.glocT=0; } // плавный выход
