@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jurassic Blocky — блочный мир динозавров</title>
+<style>
+  /* ============ JURASSIC BLOCKY · блочный PvP-мир динозавров ============ */
+  :root{ --grn:#8ee05a; --grn-d:#3fae4a; --grn-ink:#1c4a1e; --amb:#ffd24a; --red:#ff5a4a;
+         --panel:rgba(9,20,12,.88); --line:rgba(142,224,90,.32); --ink:#e8f5d8; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0d1a10}
+  body{font-family:'Trebuchet MS','Segoe UI',Arial,sans-serif;user-select:none;-webkit-user-select:none;cursor:crosshair;color:var(--ink)}
+  canvas{display:block}
+  /* ---------- меню ---------- */
+  .ov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;background:radial-gradient(1200px 700px at 50% 30%,rgba(38,80,42,.55),rgba(7,14,9,.92))}
+  .ov.hidden{display:none}
+  #menu-box{width:min(560px,94vw);background:var(--panel);border:2px solid var(--line);border-radius:18px;padding:26px 30px 22px;box-shadow:0 18px 60px rgba(0,0,0,.6);text-align:center}
+  #jb-title{font-size:44px;font-weight:900;letter-spacing:2px;line-height:1;text-shadow:0 3px 0 #143a18,0 6px 18px rgba(0,0,0,.7)}
+  #jb-title .t1{color:var(--amb)} #jb-title .t2{color:var(--grn)}
+  #jb-sub{font-size:12px;letter-spacing:3px;color:rgba(232,245,216,.6);margin:8px 0 18px;text-transform:uppercase}
+  /* карточка динозавра */
+  #dino-card{border:2px solid var(--line);border-radius:12px;background:rgba(20,40,22,.5);padding:14px 16px;text-align:left;margin-bottom:16px}
+  #dc-name{font-size:20px;font-weight:900;color:var(--grn);letter-spacing:1px}
+  #dc-cost{float:right;font-size:13px;font-weight:800;color:var(--amb)}
+  #dc-desc{font-size:12.5px;color:rgba(232,245,216,.78);margin:5px 0 10px;line-height:1.45}
+  .stat-row{display:flex;align-items:center;gap:8px;font-size:11px;margin:4px 0}
+  .stat-row .sn{width:92px;letter-spacing:1px;color:rgba(232,245,216,.6);text-transform:uppercase;font-weight:700}
+  .stat-row .sb{flex:1;height:9px;border:1px solid var(--line);border-radius:4px;background:rgba(0,0,0,.4);overflow:hidden}
+  .stat-row .sb>div{height:100%;border-radius:3px}
+  .stat-row .sv{width:56px;text-align:right;font-family:monospace;font-weight:700;font-size:11.5px}
+  /* кнопки */
+  .jb-btn{display:inline-block;font-family:inherit;font-size:19px;font-weight:900;letter-spacing:1px;color:#fff;cursor:pointer;
+    background:linear-gradient(#57c455,#2f9e3d);border:0;border-bottom:4px solid #1c6b28;border-radius:12px;padding:13px 46px;
+    text-shadow:0 2px 3px rgba(0,0,0,.45);transition:transform .08s,filter .15s}
+  .jb-btn:hover{filter:brightness(1.12)} .jb-btn:active{transform:translateY(2px);border-bottom-width:2px}
+  .jb-btn.gray{background:linear-gradient(#8a9a8a,#5d6f5e);border-bottom-color:#414f42;font-size:14px;padding:10px 24px}
+  #menu-tip{margin-top:14px;font-size:11.5px;color:rgba(232,245,216,.55);letter-spacing:.5px}
+  #net-status{font-size:11px;color:rgba(142,224,90,.75);margin-top:6px;font-family:monospace}
+  /* управление в меню */
+  #ctrl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 0 16px}
+  .ctrl{border:1px solid var(--line);border-radius:9px;padding:7px 4px;background:rgba(20,40,22,.45)}
+  .ctrl b{display:block;font-family:monospace;font-size:13px;color:var(--amb)}
+  .ctrl span{font-size:10px;color:rgba(232,245,216,.65);letter-spacing:.5px}
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;opacity:0;transition:opacity .4s}
+  #hud.on{opacity:1}
+  #vitals{position:absolute;left:20px;bottom:20px;width:240px;background:var(--panel);border:2px solid var(--line);border-radius:12px;padding:10px 12px}
+  .vrow{display:flex;align-items:center;gap:8px;margin:5px 0}
+  .vlab{font-size:9.5px;font-weight:900;letter-spacing:2px;width:34px;color:rgba(232,245,216,.6)}
+  .vbar{flex:1;height:12px;border:1px solid var(--line);border-radius:5px;background:rgba(0,0,0,.45);overflow:hidden}
+  .vbar>div{height:100%;width:100%;transition:width .12s linear}
+  #hp-fill{background:linear-gradient(90deg,#c8452f,#ff7a4a)}
+  #sta-fill{background:linear-gradient(90deg,#3fae4a,#a3e635)}
+  #hp-num,#sta-num{font-family:monospace;font-size:11px;width:44px;text-align:right;color:rgba(232,245,216,.85)}
+  #dino-tag{font-size:12px;font-weight:900;letter-spacing:1.5px;color:var(--grn);margin-bottom:2px;text-transform:uppercase}
+  /* способности */
+  #abilities{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:9px}
+  .ab{width:74px;background:var(--panel);border:2px solid var(--line);border-radius:11px;padding:7px 4px;text-align:center;position:relative;overflow:hidden}
+  .ab b{display:block;font-family:monospace;font-size:13px;color:var(--amb)}
+  .ab span{font-size:9.5px;letter-spacing:.5px;color:rgba(232,245,216,.7);white-space:nowrap}
+  .ab .cd{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);height:0%}
+  .ab.cool{filter:grayscale(.7) brightness(.75)}
+  /* монеты / инфо */
+  #coins{position:absolute;top:16px;right:18px;background:var(--panel);border:2px solid var(--line);border-radius:11px;padding:8px 14px;font-weight:900;font-size:16px;color:var(--amb);letter-spacing:1px;font-family:monospace}
+  #coins small{display:block;font-size:9px;letter-spacing:2px;color:rgba(232,245,216,.55);font-weight:700}
+  #npc-info{position:absolute;top:16px;left:18px;background:var(--panel);border:2px solid var(--line);border-radius:11px;padding:8px 14px;font-size:11px;font-family:monospace;color:rgba(232,245,216,.8);line-height:1.6}
+  /* цели npc — таблички */
+  .plate{position:fixed;z-index:4;pointer-events:none;transform:translate(-50%,-100%);text-align:center;transition:opacity .3s}
+  .plate .pn{font-size:11px;font-weight:900;letter-spacing:1px;color:#ffe9c9;text-shadow:0 1px 3px #000,0 0 8px rgba(0,0,0,.6);white-space:nowrap}
+  .plate .phb{width:64px;height:6px;border:1px solid rgba(255,120,90,.7);border-radius:3px;background:rgba(0,0,0,.55);margin:2px auto 0;overflow:hidden}
+  .plate .phb>div{height:100%;background:linear-gradient(90deg,#c8452f,#ff8a5a)}
+  /* всплывающий урон */
+  .dmg{position:fixed;z-index:6;pointer-events:none;font-family:monospace;font-weight:900;font-size:17px;color:#ffd24a;text-shadow:0 2px 4px #000;transform:translate(-50%,-50%)}
+  .dmg.heavy{color:#ff7a4a;font-size:21px}
+  /* тосты */
+  #toasts{position:fixed;top:16%;left:50%;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none}
+  .toast{font-size:15px;font-weight:800;color:#fffbe8;letter-spacing:.5px;white-space:nowrap;text-shadow:0 2px 5px #000;animation:tst 2.6s forwards}
+  .toast.coin{color:var(--amb)}
+  @keyframes tst{0%{opacity:0;transform:translateY(-10px)}12%{opacity:1;transform:none}78%{opacity:1}100%{opacity:0;transform:translateY(-6px)}}
+  #err-net{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;background:rgba(7,14,9,.94);color:#ffb0a0;font-size:15px;letter-spacing:1px;text-align:center;padding:30px}
+</style>
+</head>
+<body>
+<!-- ================= HUD ================= -->
+<div id="hud">
+  <div id="vitals">
+    <div id="dino-tag">ВЕЛОСИРААПТОР</div>
+    <div class="vrow"><div class="vlab">HP</div><div class="vbar"><div id="hp-fill"></div></div><div id="hp-num">900</div></div>
+    <div class="vrow"><div class="vlab">СИЛЫ</div><div class="vbar"><div id="sta-fill"></div></div><div id="sta-num">70</div></div>
+  </div>
+  <div id="abilities">
+    <div class="ab" id="ab-bite"><b>ЛКМ</b><span>Укус</span><div class="cd"></div></div>
+    <div class="ab" id="ab-heavy"><b>E</b><span>Тяжёлый</span><div class="cd"></div></div>
+    <div class="ab" id="ab-run"><b>SHIFT</b><span>Бег</span><div class="cd"></div></div>
+    <div class="ab" id="ab-jump"><b>SPACE</b><span>Прыжок</span><div class="cd"></div></div>
+  </div>
+  <div id="coins"><small>DINOCOINS</small><span id="coins-num">0</span></div>
+  <div id="npc-info">Динозавры в мире: <b id="npc-cnt">0</b><br>Серия укусов: <b id="combo-cnt">—</b></div>
+  <div id="toasts"></div>
+</div>
+<!-- ================= МЕНЮ ================= -->
+<div id="ov-menu" class="ov">
+  <div id="menu-box">
+    <div id="jb-title"><span class="t1">JURASSIC</span> <span class="t2">BLOCKY</span></div>
+    <div id="jb-sub">блочный мир динозавров · итерация 1</div>
+    <div id="dino-card">
+      <div id="dc-name">ВЕЛОСИРААПТОР <span id="dc-cost">БЕСПЛАТНО</span></div>
+      <div id="dc-desc">Умный засадный хищник. Тактика «ударил — убежал»: молниеносные комбо-укусы и прыжки. Пассивка «Бегун» — быстрое восстановление сил в движении.</div>
+      <div class="stat-row"><div class="sn">Здоровье</div><div class="sb"><div style="width:64%;background:#ff7a4a"></div></div><div class="sv">900</div></div>
+      <div class="stat-row"><div class="sn">Силы</div><div class="sb"><div style="width:47%;background:#a3e635"></div></div><div class="sv">70</div></div>
+      <div class="stat-row"><div class="sn">Бег</div><div class="sb"><div style="width:56%;background:#5ad0ff"></div></div><div class="sv">50</div></div>
+      <div class="stat-row"><div class="sn">Укус</div><div class="sb"><div style="width:65%;background:#ffd24a"></div></div><div class="sv">65·50·100</div></div>
+      <div class="stat-row"><div class="sn">Тяжёлый</div><div class="sb"><div style="width:73%;background:#ff5a4a"></div></div><div class="sv">110</div></div>
+    </div>
+    <div id="ctrl-grid">
+      <div class="ctrl"><b>WASD</b><span>движение</span></div>
+      <div class="ctrl"><b>МЫШЬ</b><span>камера</span></div>
+      <div class="ctrl"><b>SHIFT</b><span>бег</span></div>
+      <div class="ctrl"><b>SPACE</b><span>прыжок</span></div>
+      <div class="ctrl"><b>ЛКМ</b><span>укус ×3</span></div>
+      <div class="ctrl"><b>E</b><span>тяжёлый</span></div>
+      <div class="ctrl"><b>КОЛЕСО</b><span>зум</span></div>
+      <div class="ctrl"><b>ESC</b><span>меню</span></div>
+    </div>
+    <button id="btn-play" class="jb-btn">ИГРАТЬ</button>
+    <div id="menu-tip">Мультиплеер 30 игроков, DinoCoins за PvP, скины и мировые боссы — в следующих итерациях</div>
+    <div id="net-status">одиночный режим · локальная симуляция</div>
+  </div>
+</div>
+<div id="err-net">Не загрузился Three.js с CDN — нужна сеть.<br>Обнови страницу при подключении к интернету.</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>/* фолбэк: если CDN недоступен — локальная копия рядом с файлом (THREE в r128 — объект) */
+if(typeof THREE==='undefined') document.write('<script src="three.r128.min.js"><\/script>');
+</script>
+<script>
+(function(){
+'use strict';
+if(typeof THREE==='undefined'){ document.getElementById('err-net').style.display='flex'; return; }
+
+// ================= ХЕЛПЕРЫ =================
+const V3=(x,y,z)=>new THREE.Vector3(x||0,y||0,z||0);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const rand=(a,b)=>a+Math.random()*(b-a);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const $=id=>document.getElementById(id);
+// детерминированный ПСЧ (seed) — карта одинаковая при каждом запуске; сервер потом сгенерирует её по тому же seed
+function mulberry32(seed){ let a=seed>>>0; return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const SEED=20251124; // дата релиза Jurassic Blocky — 24.11.2022
+const srng=mulberry32(SEED);
+const srand=(a,b)=>a+srng()*(b-a);
+
+// ================= ДИНОЗАВРЫ (данные — будущий сервер отдаст этот же список) =================
+// Скорости: в JB 20/50 «стадов» ≈ 5.6/14 м/с (1 stud ≈ 0.28 м). Урон — комбоколебания LC1-LC3 и Heavy из вики.
+const DINOS=[
+  { id:'raptor', name:'Велосирааптор', cost:0, hp:900, sta:70, walk:5.6, run:14,
+    bite:[65,50,100], heavy:110, jumpV:8.5, scale:1, turn:2.6,
+    pal:{body:0x5a7d3a, belly:0xc9c07f, dark:0x3c5426, head:0x6b8f45, stripe:0x2e4520, eye:0xffd24a, claw:0xe8e4d0},
+    desc:'Засадный хищник: комбо укусов и рывки.' },
+  { id:'raptorJungle', name:'Стадный раптор', cost:0, hp:520, sta:60, walk:5.2, run:13,
+    bite:[35,28,55], heavy:70, jumpV:8, scale:.78, turn:2.8, npc:true,
+    pal:{body:0x7d6b3a, belly:0xd8cfa0, dark:0x544726, head:0x8a7845, stripe:0x3e3418, eye:0xff9a4a, claw:0xd8d4c0},
+    desc:'Дикий раптор джунглей.' }
+];
+const dinoDef=id=>DINOS.find(d=>d.id===id)||DINOS[0];
+
+// ================= СОСТОЯНИЕ (сущности — как на сервере: id, kind, hp, позиция) =================
+// Мультиплеер-задел: ENT — единый формат для локального игрока, NPC и будущих сетевых пилотов.
+// Симуляция идёт фиксированным шагом SIM_DT; рендер интерполирует.
+const SIM_DT=1/30;
+const G={ state:'menu', myId:'p1', coins:0, t:0, comboIdx:0, comboT:0 };
+const ENT=[];
+function makeEnt(id,kind,dinoId,team){
+  const def=dinoDef(dinoId);
+  return { id, kind, team:team||'wild', dinoId, def,
+    pos:V3(), vel:V3(), yaw:0, pitch:0, speed:0, grounded:true,
+    hp:def.hp, hpMax:def.hp, sta:def.sta, staMax:def.sta, alive:true,
+    walkPhase:rand(0,6.28), attackT:0, heavyT:0, heavyCd:0, biteCd:0, stunT:0, deathT:0, respawnT:0,
+    moveMode:0, // 0 стоит · 1 идёт · 2 бежит
+    isLocal:false, name:'' };
+}
+const my=makeEnt(G.myId,'human','raptor','blue'); my.isLocal=true; my.name='Ты';
+ENT.push(my);
+
+// ================= СЦЕНА =================
+const scene=new THREE.Scene();
+const SKY=0x8ec8e8;
+scene.background=new THREE.Color(SKY);
+scene.fog=new THREE.Fog(SKY,140,560);
+const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,.1,1400);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+// свет: тёплое утро в джунглях
+const hemi=new THREE.HemisphereLight(0xcfe8ff,0x3a5a2e,.85); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xfff2d8,1.15);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-90; sun.shadow.camera.right=90; sun.shadow.camera.top=90; sun.shadow.camera.bottom=-90;
+sun.shadow.camera.far=400; sun.shadow.bias=-0.0004;
+scene.add(sun); scene.add(sun.target);
+
+// ================= МИР: блочный террасированный ландшафт =================
+const MAP_R=460;              // радиус мира
+const TILE=8;                 // размер блока земли
+const STEP=2;                 // высота террасы
+// value-noise 2 октавы от seed
+const _perm=(()=>{ const p=new Uint8Array(512); const r=mulberry32(SEED^0x9e37); for(let i=0;i<256;i++)p[i]=i;
+  for(let i=255;i>0;i--){ const j=(r()*(i+1))|0; const t=p[i]; p[i]=p[j]; p[j]=t; } for(let i=0;i<256;i++)p[256+i]=p[i]; return p; })();
+function vhash(ix,iz){ return _perm[(_perm[ix&255]+iz)&255]/255; }
+function vnoise(x,z){ const ix=Math.floor(x), iz=Math.floor(z), fx=x-ix, fz=z-iz;
+  const u=fx*fx*(3-2*fx), v=fz*fz*(3-2*fz);
+  return lerp(lerp(vhash(ix,iz),vhash(ix+1,iz),u), lerp(vhash(ix,iz+1),vhash(ix+1,iz+1),u), v); }
+function rawHeight(x,z){ // радиальная чаша: к краям горы, в центре — равнина и озеро
+  const d=Math.sqrt(x*x+z*z);
+  let h=vnoise(x*.011+40,z*.011+40)*10+vnoise(x*.027+9,z*.027+9)*4.2-4.5;
+  h+=Math.max(0,(d-300)/160)*16;                       // подъем к краю карты
+  const lake=Math.max(0,1-Math.hypot(x-95,z-70)/95);   // озеро восточнее центра
+  h-=lake*lake*7.5;
+  const clear=Math.max(0,1-d/70);                      // clearing спавна
+  h=lerp(h,1.2,clear*.85);
+  return h;
+}
+function terrainH(x,z){ return Math.round(rawHeight(x,z)/STEP)*STEP; } // ступеньки — блок-стиль
+const WATER_Y=-2;
+
+// земля: InstancedMesh блоков 8×h×8 с цветом по высоте (трава/песок/скал/дно)
+(function buildGround(){
+  const N=Math.ceil(MAP_R*2/TILE);
+  const geo=new THREE.BoxGeometry(TILE,1,TILE);
+  const mat=new THREE.MeshLambertMaterial({color:0xffffff});
+  const inst=new THREE.InstancedMesh(geo,mat,N*N);
+  const m=new THREE.Matrix4(), c=new THREE.Color();
+  let k=0;
+  for(let ix=0;ix<N;ix++)for(let iz=0;iz<N;iz++){
+    const x=-MAP_R+TILE/2+ix*TILE, z=-MAP_R+TILE/2+iz*TILE;
+    if(x*x+z*z>MAP_R*MAP_R+40) continue;
+    const h=terrainH(x,z);
+    m.makeScale(1,Math.max(.5,h-WATER_Y+6),1);          // блок от дна озера до поверхности
+    m.setPosition(x,(h+(WATER_Y-6))/2,z);
+    inst.setMatrixAt(k,m);
+    const t=vnoise(x*.05,z*.05);
+    if(h<WATER_Y+1.2) c.setHex(0xc9b87a).multiplyScalar(.92+t*.12);          // песок/дно
+    else if(h>10) c.setHex(0x8d8f8a).multiplyScalar(.85+t*.2);               // скалы
+    else c.setHex(0x4e8f3a).multiplyScalar(.82+t*.3);                        // трава
+    inst.setColorAt(k,c); k++;
+  }
+  inst.count=k;
+  inst.instanceMatrix.needsUpdate=true;
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  inst.receiveShadow=true;
+  scene.add(inst);
+})();
+// вода: полупрозрачная плита на уровне озера
+(function buildWater(){
+  const g=new THREE.PlaneGeometry(MAP_R*2.4,MAP_R*2.4);
+  const m=new THREE.MeshLambertMaterial({color:0x2e7db8,transparent:true,opacity:.62});
+  const w=new THREE.Mesh(g,m); w.rotation.x=-Math.PI/2; w.position.y=WATER_Y+ .4;
+  w.receiveShadow=false; scene.add(w);
+})();
+// джунгли: блочные деревья (ствол+крона из кубов, InstancedMesh)
+(function buildTrees(){
+  const spots=[];
+  for(let i=0;i<170;i++){
+    const a=srng()*6.283, d=45+srng()*(MAP_R-70);
+    const x=Math.cos(a)*d, z=Math.sin(a)*d, h=terrainH(x,z);
+    if(h<WATER_Y+1.5||h>11) continue;
+    if(Math.hypot(x,z)<38) continue;                     // clearing спавна
+    let ok=true; for(const s of spots) if(Math.hypot(s[0]-x,s[1]-z)<7){ ok=false; break; }
+    if(ok) spots.push([x,z,h,srng()]);
+  }
+  const trunkG=new THREE.BoxGeometry(1.3,6,1.3), trunkM=new THREE.MeshLambertMaterial({color:0x6b4a2a});
+  const crownG=new THREE.BoxGeometry(4.6,3,4.6), crownM=new THREE.MeshLambertMaterial({color:0x2f7a2e});
+  const trunk=new THREE.InstancedMesh(trunkG,trunkM,spots.length);
+  const crown=new THREE.InstancedMesh(crownG,crownM,spots.length*2);
+  const m=new THREE.Matrix4(), c=new THREE.Color();
+  let k2=0;
+  spots.forEach((s,i)=>{
+    const sc=.8+s[3]*.9, th=6*sc;
+    m.makeScale(sc,sc,sc); m.setPosition(s[0],s[2]+th/2,s[1]); trunk.setMatrixAt(i,m);
+    m.makeScale(1,1,1); m.setPosition(s[0],s[2]+th+1.4,s[1]); crown.setMatrixAt(k2,m);
+    c.setHex(0x2f7a2e).multiplyScalar(.85+s[3]*.35); crown.setColorAt(k2,c); k2++;
+    m.setPosition(s[0]+srand(-1.2,1.2),s[2]+th+3.4,s[1]+srand(-1.2,1.2));
+    c.multiplyScalar(.9); crown.setMatrixAt(k2,m); crown.setColorAt(k2,c); k2++;
+  });
+  trunk.castShadow=true; crown.castShadow=true;
+  crown.instanceMatrix.needsUpdate=true;
+  if(crown.instanceColor) crown.instanceColor.needsUpdate=true;
+  scene.add(trunk); scene.add(crown);
+})();
+// валуны
+(function buildRocks(){
+  const spots=[];
+  for(let i=0;i<46;i++){
+    const a=srng()*6.283, d=40+srng()*(MAP_R-60);
+    const x=Math.cos(a)*d, z=Math.sin(a)*d, h=terrainH(x,z);
+    if(h<WATER_Y+1) continue;
+    spots.push([x,z,h,srng()]);
+  }
+  const g=new THREE.BoxGeometry(2.4,2.4,2.4), mm=new THREE.MeshLambertMaterial({color:0x9a9a92});
+  const inst=new THREE.InstancedMesh(g,mm,spots.length*2);
+  const m=new THREE.Matrix4(), c=new THREE.Color(), q=new THREE.Quaternion(), ax=V3(0,1,0);
+  spots.forEach((s,i)=>{
+    const sc=1+s[3]*2.2;
+    q.setFromAxisAngle(ax,s[3]*6.28);
+    m.makeRotationFromQuaternion(q); m.scale(V3(sc,sc*.8,sc)); m.setPosition(s[0],s[2]+sc*.4,s[1]);
+    inst.setMatrixAt(i*2,m);
+    m.setPosition(s[0]+sc*.9,s[2]+sc*.3,s[1]-sc*.6);
+    inst.setMatrixAt(i*2+1,m);
+    c.setHex(0x9a9a92).multiplyScalar(.8+s[3]*.4);
+    inst.setColorAt(i*2,c); inst.setColorAt(i*2+1,c);
+  });
+  inst.castShadow=true; inst.receiveShadow=true;
+  if(inst.instanceColor) inst.instanceColor.needsUpdate=true;
+  scene.add(inst);
+})();
+
+// ================= МОДЕЛЬ ДИНОЗАВРА: блочный велоцираптор из кубов =================
+// buildDino(def) → { g:Group, parts } — одна и та же сборка для игрока, NPC и будущих сетевых игроков.
+function buildDino(def){
+  const P=def.pal, sc=def.scale||1;
+  const M=c=>new THREE.MeshLambertMaterial({color:c});
+  const box=(w,h,d,c)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c)); m.castShadow=true; return m; };
+  const g=new THREE.Group();
+  const hips=new THREE.Group(); hips.position.y=1.72; g.add(hips);          // корень анимации
+  // корпус: зад шире, перед уже
+  const rump=box(1.15,.95,1.5,P.body); rump.position.set(0,.05,.25); hips.add(rump);
+  const chest=box(.95,.85,1.5,P.body); chest.position.set(0,.02,-1.15); hips.add(chest);
+  const belly=box(.9,.5,2.4,P.belly); belly.position.set(0,-.42,-.35); hips.add(belly);
+  // полосы на спине
+  for(let i=0;i<3;i++){ const st=box(.3,.14,1.15,P.stripe); st.position.set(0,.5,.7-i*.85); hips.add(st); }
+  // шея + голова (нижняя челюсть отдельная — анимация укуса); шея горизонтальная — силуэт хищника, не sauropod
+  const neck=new THREE.Group(); neck.position.set(0,.38,-1.8); hips.add(neck);
+  const neckM=box(.62,.58,.95,P.body); neckM.rotation.x=.5; neckM.position.set(0,.14,-.28); neck.add(neckM);
+  const head=new THREE.Group(); head.position.set(0,.3,-.72); neck.add(head);
+  const skull=box(.6,.5,1.0,P.head); skull.position.set(0,.06,-.3); head.add(skull);
+  const snout=box(.5,.32,.6,P.head); snout.position.set(0,0,-1.0); head.add(snout);
+  const jaw=new THREE.Group(); jaw.position.set(0,-.18,-.5); head.add(jaw);   // pivot укуса
+  const jawM=box(.48,.18,.9,P.dark); jawM.position.set(0,-.06,-.45); jaw.add(jawM);
+  for(const s of [-1,1]){ const e=box(.1,.12,.1,P.eye); e.position.set(s*.32,.14,-.52); head.add(e); }
+  // гребень/перья за головой — узнаваемость силеты
+  for(const s of [-1,1]){ const cr=box(.08,.42,.14,P.stripe); cr.position.set(s*.18,.42,.1); cr.rotation.z=s*.35; head.add(cr); }
+  // хвост: цепочка сегментов — виляет при беге; держится горизонтально
+  const tail=[]; let prev=hips;
+  for(let i=0;i<4;i++){
+    const seg=new THREE.Group(); seg.position.set(0,0,i?1.0:.95); prev.add(seg);
+    const w=.9-i*.16;
+    const tm=box(w,w-.16,1.05,i<2?P.body:P.dark); tm.position.z=.5; seg.add(tm);
+    tail.push(seg); prev=seg;
+  }
+  // лапы: бедро+голень+ступня с когтями — pivot в тазобедренном суставе; толще — силуэт плотнее
+  const legs=[];
+  for(const s of [-1,1]){
+    const hip=new THREE.Group(); hip.position.set(s*.55,-.05,.5); hips.add(hip);
+    const thigh=box(.5,.95,.62,P.body); thigh.position.set(0,-.46,0); hip.add(thigh);
+    const shin=new THREE.Group(); shin.position.set(0,-.95,0); hip.add(shin);
+    const shinM=box(.4,.9,.44,P.dark); shinM.position.set(0,-.42,.06); shin.add(shinM);
+    const foot=new THREE.Group(); foot.position.set(0,-.88,-.05); shin.add(foot);
+    const footM=box(.46,.2,.95,P.body); footM.position.set(0,-.08,-.18); foot.add(footM);
+    for(let t=0;t<3;t++){ const cl=box(.1,.09,.34,P.claw); cl.position.set((t-1)*.14,-.12,-.72); foot.add(cl); }
+    legs.push({hip,shin,foot});
+  }
+  // руки маленькие
+  for(const s of [-1,1]){ const arm=box(.16,.5,.2,P.body); arm.position.set(s*.55,-.15,-1.6); arm.rotation.x=-.5; hips.add(arm); }
+  g.scale.setScalar(sc);
+  return { g, hips, neck, head, jaw, tail, legs };
+}
+// процедурная анимация: walkPhase гонит ноги, хвост виляет, челюсть дожёвывает
+function animDino(e,md,dt){
+  const moving=e.speed>.4, run=e.moveMode===2;
+  e.walkPhase+=(run?11:e.speed*.9+ (moving?4.2:0))*dt*(defPhase(e));
+  const p=e.walkPhase, sw=moving?(run?.85:.5):0;
+  for(let i=0;i<2;i++){
+    const L=md.legs[i], ph=p+i*Math.PI;
+    L.hip.rotation.x=Math.sin(ph)*sw*.75;
+    L.shin.rotation.x=Math.max(0,-Math.cos(ph))*sw*.9+(moving?.15:.05);
+    L.foot.rotation.x=-Math.max(0,Math.sin(ph))*sw*.5;
+  }
+  md.hips.position.y=1.72+(moving?Math.abs(Math.sin(p))*.12:Math.sin(G.t*1.6)*.03); // дыхание стоя
+  md.tail[0].rotation.y=Math.sin(p*.55)*.22; md.tail[1].rotation.y=Math.sin(p*.55-.5)*.2;
+  md.tail[2].rotation.y=Math.sin(p*.55-1)*.17;
+  md.neck.rotation.x=(moving?-.08:0)+Math.sin(G.t*1.1)*.03;
+  // укус: jaw открывается на attackT
+  const atk=Math.max(e.attackT,e.heavyT>0?(e.heavyT):0);
+  md.jaw.rotation.x=atk>0?clamp(atk*3.2,0,.62):0;
+  // замах тяжёлого: привстаём на дыбы
+  md.hips.rotation.x=e.heavyT>0?lerp(-.42,0,1-e.heavyT/0.55):0;
+  md.g.rotation.y=e.yaw;
+}
+function defPhase(e){ return (e.def.scale<1?1.25:1); }
+
+// спавн игрока в clearing, NPC — по лесам
+function placeOnGround(e,x,z){ e.pos.set(x,terrainH(x,z),z); }
+placeOnGround(my,rand(-8,8),rand(-8,8)); my.yaw=Math.PI*.25;
+for(let i=0;i<5;i++){
+  const n=makeEnt('n'+(i+1),'npc','raptorJungle','wild');
+  n.name='Стадный раптор '+(i+1);
+  const a=srng()*6.283, d=srand(70,180);
+  placeOnGround(n,Math.cos(a)*d,Math.sin(a)*d);
+  n.yaw=srng()*6.283; n.home=V3(n.pos.x,0,n.pos.z); n.wanderT=0;
+  n.mesh=buildDino(n.def); scene.add(n.mesh.g);
+  ENT.push(n);
+}
+const myMesh=buildDino(my.def); scene.add(myMesh.g);
+
+// ================= СЕТЬ (заглушка под мультиплеер) =================
+// TODO(итерация «мультиплеер»): сюда встаёт socket.io + снапшоты, как в Wings of Glory.
+// Клиент шлёт ИНТЕНТЫ (bite/heavy/move-state), сервер применяет applyDamage и раздаёт снапшоты.
+const NET={
+  inRoom:false, sock:null,
+  intents:{ bite:null, heavy:null, move:null }, // очередь на отправку
+  connect(){ /* socket.io появится здесь */ },
+  emitIntent(type,payload){ /* NET.sock.emit('i',{t:type,...payload}) */ }
+};
+
+// ================= ВВОД =================
+const keys={};
+let mouseDown=false, camYaw=Math.PI*.25, camPitch=.32, camDist=10.5, locked=false;
+addEventListener('keydown',e=>{
+  if(e.repeat) return;
+  keys[e.code]=true;
+  if(e.code==='KeyE'&&G.state==='play') tryHeavy();
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('mousedown',e=>{
+  if(e.button!==0) return;
+  if(G.state==='play'&&!locked){ renderer.domElement.requestPointerLock(); return; }
+  mouseDown=true;
+  if(G.state==='play') tryBite();
+});
+addEventListener('mouseup',e=>{ if(e.button===0) mouseDown=false; });
+addEventListener('mousemove',e=>{
+  if(!locked) return;
+  camYaw-=e.movementX*.0026;
+  camPitch=clamp(camPitch+e.movementY*.0022,-.25,1.05);
+});
+addEventListener('wheel',e=>{ camDist=clamp(camDist+e.deltaY*.01,6,22); },{passive:true});
+document.addEventListener('pointerlockchange',()=>{ locked=document.pointerLockElement===renderer.domElement; });
+addEventListener('keydown',e=>{ // Esc — меню (pointerlock сам отпустит)
+  if(e.code==='Escape'&&G.state==='play') setTimeout(toMenu,0);
+});
+
+// ================= БОЙ: воронка урона (на сервере будет только она) =================
+function applyDamage(target,dmg,src,heavy){
+  if(!target.alive||G.state!=='play') return;
+  target.hp-=dmg;
+  spawnDmgNum(target,dmg,heavy);
+  if(target.isLocal) shake=.5;
+  if(target.hp<=0){
+    target.alive=false; target.hp=0; target.deathT=0;
+    if(src&&src.isLocal){ addCoins(15); toast('+'+15+' DinoCoins — '+target.name+' повержен','coin'); }
+    if(target.kind==='npc') target.respawnT=15;
+    if(target.isLocal) setTimeout(()=>{ if(G.state==='play') toast('Ты повержен... возрождение в clearing','coin'); },400);
+  }
+}
+function tryBite(){
+  const e=my; if(!e.alive||e.biteCd>0||e.stunT>0||e.sta<6) return;
+  G.comboT>0? G.comboIdx=(G.comboIdx+1)%3 : G.comboIdx=0;
+  G.comboT=1.1;
+  const dmg=e.def.bite[G.comboIdx];
+  e.attackT=.32; e.biteCd=.45; e.sta-=6;
+  e.vel.addScaledVector(fwdOf(e),2.2); // выпад вперёд
+  NET.emitIntent('bite',{tid:null}); // TODO: tid выберет сервер по попаданию
+  meleeHit(e,e.def.bite[G.comboIdx],5.6,.42,false);
+  updComboHud();
+}
+function tryHeavy(){
+  const e=my; if(!e.alive||e.heavyCd>0||e.stunT>0||e.sta<25) return;
+  e.heavyT=.55; e.heavyCd=6; e.sta-=25;
+  NET.emitIntent('heavy',{});
+  setTimeout(()=>{ // замах 0.55 c — удар после
+    if(!e.alive) return;
+    meleeHit(e,e.def.heavy,6.6,.5,true);
+    // отбрасывание+стан
+    for(const t of ENT){ if(t===e||!t.alive) continue;
+      const d=t.pos.distanceTo(e.pos);
+      if(d<7){ const dir=V3().copy(t.pos).sub(e.pos).setY(0).normalize();
+        t.vel.addScaledVector(dir,13); t.stunT=.8; }
+    }
+  },550);
+}
+function meleeHit(e,dmg,range,arc,heavy){
+  for(const t of ENT){
+    if(t===e||!t.alive||t.team===e.team) continue;
+    const to=V3().copy(t.pos).sub(e.pos); const d=to.length();
+    if(d>range+t.def.scale*1.4) continue;
+    to.normalize();
+    if(fwdOf(e).dot(to)<arc) continue;
+    applyDamage(t,Math.round(dmg*rand(.92,1.1)),e,heavy);
+  }
+}
+const _f=V3();
+function fwdOf(e){ return _f.set(-Math.sin(e.yaw),0,-Math.cos(e.yaw)); }
+
+// ================= AI NPC: бродят, убегают, возрождаются =================
+function updNpc(n,dt){
+  if(!n.alive){ n.respawnT-=dt; if(n.respawnT<=0){ n.alive=true; n.hp=n.hpMax; n.sta=n.staMax;
+      const a=Math.random()*6.283, d=rand(70,180);
+      placeOnGround(n,Math.cos(a)*d,Math.sin(a)*d); n.home.set(n.pos.x,0,n.pos.z); }
+    return; }
+  if(n.stunT>0){ n.stunT-=dt; n.speed=0; n.moveMode=0; return; }
+  n.wanderT-=dt;
+  let tgt=null, flee=false;
+  const dp=n.pos.distanceTo(my.pos);
+  if(my.alive&&dp<10&&(G.comboT>0||n.hp<n.hpMax)){ tgt=my; flee=true; }  // задел — побежали
+  else if(my.alive&&dp<26&&Math.random()<dt*.5){ tgt=my; flee=true; }
+  let dir=_v2;
+  if(flee&&tgt){ dir.copy(n.pos).sub(tgt.pos).setY(0).normalize(); n.moveMode=2; n.speed=n.def.run;
+    if(n.sta<12){ n.moveMode=1; n.speed=n.def.walk; } }
+  else{
+    if(n.wanderT<=0){ n.wanderT=rand(3,7);
+      n.wp=V3(n.home.x+rand(-55,55),0,n.home.z+rand(-55,55)); }
+    if(n.wp){ dir.copy(n.wp).sub(n.pos).setY(0); const dd=dir.length();
+      if(dd<3){ n.speed=0; n.moveMode=0; } else { dir.normalize(); n.moveMode=1; n.speed=n.def.walk; } }
+    else { n.speed=0; n.moveMode=0; }
+  }
+  if(n.speed>0){
+    const want=Math.atan2(-dir.x,-dir.z);
+    let dy=want-n.yaw; while(dy>Math.PI)dy-=6.283; while(dy<-Math.PI)dy+=6.283;
+    n.yaw+=clamp(dy,-n.def.turn*dt,n.def.turn*dt);
+    n.pos.addScaledVector(fwdOf(n).clone(),n.speed*dt);
+  }
+  n.sta=clamp(n.sta+(n.moveMode===2?-7:9)*dt,0,n.staMax);
+  n.pos.y=terrainH(n.pos.x,n.pos.z);
+  edgePush(n);
+}
+const _v2=V3();
+function edgePush(e){ // край мира: мягкая стена
+  const d=Math.hypot(e.pos.x,e.pos.z);
+  if(d>MAP_R-14){ const k=(d-(MAP_R-14))/14; e.pos.x*=(1-k*.06); e.pos.z*=(1-k*.06); }
+}
+
+// ================= ИГРОК: движение/стамина/камера =================
+let shake=0;
+function updPlayer(dt){
+  const e=my;
+  if(!e.alive){ // возрождение
+    e.deathT+=dt;
+    if(e.deathT>4){ e.alive=true; e.hp=e.hpMax; e.sta=e.staMax; placeOnGround(e,rand(-8,8),rand(-8,8)); toast('Возрождение!'); }
+    return;
+  }
+  if(e.stunT>0){ e.stunT-=dt; }
+  const gy=terrainH(e.pos.x,e.pos.z);
+  // направление от камеры
+  let ix=0,iz=0;
+  if(keys.KeyW)iz-=1; if(keys.KeyS)iz+=1; if(keys.KeyA)ix-=1; if(keys.KeyD)ix+=1;
+  const wantRun=(keys.ShiftLeft||keys.ShiftRight)&&e.sta>1&&e.moveMode!==0;
+  const moving=(ix||iz)&&e.stunT<=0;
+  e.moveMode=moving?(wantRun?2:1):0;
+  const water=gy<WATER_Y; // в воде вдвое медленнее — как в JB на мелководье
+  const spd=(e.moveMode===2?e.def.run:e.moveMode===1?e.def.walk:0)*(water?.55:1);
+  if(moving){
+    const ang=Math.atan2(ix,iz)+camYaw;
+    const dir=_v3.set(Math.sin(ang),0,Math.cos(ang));
+    // поворот тела к направлению бега (плавно)
+    const want=Math.atan2(-dir.x,-dir.z);
+    let dy=want-e.yaw; while(dy>Math.PI)dy-=6.283; while(dy<-Math.PI)dy+=6.283;
+    e.yaw+=clamp(dy,-e.def.turn*dt*2.2,e.def.turn*dt*2.2);
+    e.pos.addScaledVector(dir,spd*dt);
+    e.speed=spd;
+  } else e.speed=Math.max(0,e.speed-30*dt);
+  // стамина: бег жрёт, «Бегун» быстрее восстанавливает в движении
+  const drain=e.moveMode===2?12:0;
+  const regen=e.moveMode===0?14:(9+3); // пассивка Бегун: +3 в движении
+  e.sta=clamp(e.sta+(regen-drain)*dt,0,e.staMax);
+  // прыжок
+  if((keys.Space)&&e.grounded&&e.sta>=12&&e.stunT<=0){ e.vel.y=e.def.jumpV; e.grounded=false; e.sta-=12; }
+  // гравитация/земля
+  e.vel.y-=24*dt;
+  e.pos.y+=e.vel.y*dt;
+  if(e.pos.y<=gy){ e.pos.y=gy; e.vel.y=0; e.grounded=true; }
+  edgePush(e);
+  // кулдауны
+  e.biteCd=Math.max(0,e.biteCd-dt); e.heavyCd=Math.max(0,e.heavyCd-dt);
+  if(e.heavyT>0) e.heavyT=Math.max(0,e.heavyT-dt);
+  if(e.attackT>0) e.attackT=Math.max(0,e.attackT-dt);
+  if(G.comboT>0){ G.comboT-=dt; if(G.comboT<=0){ G.comboIdx=0; updComboHud(); } }
+  // камера третьего лица
+  const focus=V3(e.pos.x,e.pos.y+2.1*e.def.scale,e.pos.z);
+  const cd=camDist*e.def.scale;
+  const cx=focus.x+Math.sin(camYaw)*Math.cos(camPitch)*cd;
+  const cz=focus.z+Math.cos(camYaw)*Math.cos(camPitch)*cd;
+  const cy=focus.y+Math.sin(camPitch)*cd+1.1;
+  camera.position.set(cx,Math.max(cy,terrainH(cx,cz)+1.2),cz);
+  if(shake>0){ shake=Math.max(0,shake-dt*2.4);
+    camera.position.x+=rand(-1,1)*shake*.35; camera.position.y+=rand(-1,1)*shake*.35; }
+  camera.lookAt(focus);
+  // солнце следует за игроком — тени резкие рядом
+  sun.position.set(e.pos.x+60,e.pos.y+95,e.pos.z+35);
+  sun.target.position.copy(e.pos);
+}
+const _v3=V3();
+
+// ================= HUD / визуальные эффекты =================
+function toast(t,cls){ const d=document.createElement('div'); d.className='toast'+(cls?' '+cls:''); d.textContent=t;
+  $('toasts').appendChild(d); setTimeout(()=>d.remove(),2600); }
+function addCoins(n){ G.coins+=n; $('coins-num').textContent=G.coins; }
+function updComboHud(){ $('combo-cnt').textContent=G.comboT>0?(G.comboIdx+1)+' из 3':'—'; }
+const dmgPool=[];
+function spawnDmgNum(t,dmg,heavy){
+  let el=dmgPool.find(x=>!x.busy);
+  if(!el){ el={div:document.createElement('div'),busy:false}; document.body.appendChild(el.div); dmgPool.push(el); if(dmgPool.length>14) return; }
+  el.busy=true; el.t=0;
+  el.div.className='dmg'+(heavy?' heavy':''); el.div.textContent='-'+dmg;
+  el.div.style.display='block';
+  el.target=t; el.life=heavy?1.2:.9;
+}
+function updDmgNums(dt){
+  const v=_v4;
+  for(const el of dmgPool){
+    if(!el.busy) continue;
+    el.t+=dt;
+    if(el.t>=el.life){ el.busy=false; el.div.style.display='none'; continue; }
+    if(el.target&&el.target.alive){ v.set(el.target.pos.x,el.target.pos.y+2.6*el.target.def.scale,el.target.pos.z); }
+    else if(el.target){ v.copy(el.target.pos); v.y+=2; }
+    v.project(camera);
+    if(v.z>1){ el.div.style.display='none'; continue; }
+    el.div.style.display='block';
+    el.div.style.left=((v.x+1)/2*innerWidth)+'px';
+    el.div.style.top=((-v.y+1)/2*innerHeight - el.t*70)+'px';
+    el.div.style.opacity=1-el.t/el.life;
+  }
+}
+const _v4=V3();
+// таблички над NPC
+const plates=new Map();
+function updPlates(){
+  for(const e of ENT){
+    if(e.kind!=='npc'){ continue; }
+    let pl=plates.get(e.id);
+    if(!e.alive){ if(pl) pl.style.opacity=0; continue; }
+    if(!pl){ pl=document.createElement('div'); pl.className='plate';
+      pl.innerHTML='<div class="pn"></div><div class="phb"><div></div></div>';
+      document.body.appendChild(pl); plates.set(e.id,pl); }
+    const v=_v5.set(e.pos.x,e.pos.y+3.1*e.def.scale,e.pos.z).project(camera);
+    if(v.z>1||e.pos.distanceTo(my.pos)>90){ pl.style.opacity=0; continue; }
+    pl.style.opacity=1;
+    pl.style.left=((v.x+1)/2*innerWidth)+'px';
+    pl.style.top=((-v.y+1)/2*innerHeight)+'px';
+    pl.querySelector('.pn').textContent=e.name;
+    pl.querySelector('.phb>div').style.width=(e.hp/e.hpMax*100)+'%';
+  }
+}
+const _v5=V3();
+function updHud(){
+  $('hp-fill').style.width=(my.hp/my.hpMax*100)+'%';
+  $('hp-num').textContent=Math.ceil(my.hp);
+  $('sta-fill').style.width=(my.sta/my.staMax*100)+'%';
+  $('sta-num').textContent=Math.ceil(my.sta);
+  $('npc-cnt').textContent=ENT.filter(e=>e.kind==='npc'&&e.alive).length;
+  const abBite=$('ab-bite'), abHeavy=$('ab-heavy'), abRun=$('ab-run');
+  abBite.classList.toggle('cool',my.biteCd>0||my.sta<6);
+  abBite.querySelector('.cd').style.height=(my.biteCd/.45*100)+'%';
+  abHeavy.classList.toggle('cool',my.heavyCd>0||my.sta<25);
+  abHeavy.querySelector('.cd').style.height=(my.heavyCd/6*100)+'%';
+  abRun.classList.toggle('cool',my.sta<=1);
+  $('ab-jump').classList.toggle('cool',!my.grounded||my.sta<12);
+}
+
+// ================= МЕНЮ / СТАРТ =================
+function toMenu(){
+  if(G.state!=='play') return;
+  G.state='menu';
+  $('hud').classList.remove('on');
+  $('ov-menu').classList.remove('hidden');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+$('btn-play').addEventListener('click',()=>{
+  G.state='play';
+  $('ov-menu').classList.add('hidden');
+  $('hud').classList.add('on');
+  renderer.domElement.requestPointerLock();
+  toast('Найди стадо и атакуй! ЛКМ — укус, E — тяжёлый удар');
+});
+
+// ================= ЦИКЛ: фикс. шаг симуляции + рендер =================
+let acc=0, lastT=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=(now-lastT)/1000; lastT=now;
+  if(dt>.25) dt=.25;
+  if(G.state==='play'){
+    acc+=dt;
+    while(acc>=SIM_DT){ step(SIM_DT); acc-=SIM_DT; }
+    updHud(); updDmgNums(dt); updPlates();
+  }
+  renderer.render(scene,camera);
+}
+function step(dt){
+  G.t+=dt;
+  updPlayer(dt);
+  for(const e of ENT){ if(e.kind==='npc') updNpc(e,dt); }
+  // синхронизация мешей
+  for(const e of ENT){
+    const md=e===my?myMesh:e.mesh;
+    if(!md) continue;
+    md.g.visible=e.alive;
+    if(!e.alive&&e.kind==='npc') continue;
+    md.g.position.copy(e.pos);
+    animDino(e,md,dt);
+  }
+}
+updComboHud();
+window.JB={my,ENT,camera,scene,renderer,G,myMesh}; // отладка/тесты (и хук для будущих тестов мультиплеера)
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
