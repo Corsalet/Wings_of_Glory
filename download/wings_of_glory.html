@@ -1020,7 +1020,11 @@ const NET={
     PROG.upg={}; const su=p.upg||{};
     for(const pl of PLANES) PROG.upg[pl.id]={eng:(su[pl.id]&&su[pl.id].eng)||0,dur:(su[pl.id]&&su[pl.id].dur)||0,hdl:(su[pl.id]&&su[pl.id].hdl)||0,gun:(su[pl.id]&&su[pl.id].gun)||0};
     PROG.prem=!!p.prem;
+    PROG.pilot=p.nick||'';
+    saveProg(); // снапшот серверного профиля в localStorage: при запуске без связи (холодный старт сервера,
+    // обрыв сети) видно последний сохранённый прогресс, а не дефолтные 1000 ₽ и По-2 — иначе выглядит как сброс
     if(state==='menu'){ applyPlayerPlane(); setupTiers(); }
+    if(!$('ov-hangar').classList.contains('hidden')) renderHangar(); // ангар открыт — перерисовать немедленно
     updateMenuWallet();
     netPilotLine(); // строка «Пилот: … · самолёт · деньги · опыт» — раньше обновлялась только при логине,
     // и после боя/покупки/кода в ней висели старые значения (По-2 · 1000 ₽ при реальном Су-57 · 2770 ₽)
@@ -1035,7 +1039,7 @@ function netShowAuth(auth){ $('net-auth').style.display=auth?'block':'none'; $('
 function netPilotLine(){
   const pr=NET.profile||{};
   const pl=PLANES.find(x=>x.id===PROG.sel)||PLANES[0];
-  $('net-pilot').textContent='Пилот: '+pr.nick+' · '+pl.name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
+  $('net-pilot').textContent='Пилот: '+(pr.nick||PROG.pilot||'Гость')+' · '+pl.name+' · '+fmtMoney(PROG.money)+' · '+PROG.xp+' опыта';
 }
 function netTokenGet(){ try{ return localStorage.getItem(NET_TOKEN_KEY)||''; }catch(e){ return ''; } }
 function netTokenSet(t){ try{ localStorage.setItem(NET_TOKEN_KEY,t); }catch(e){} }
@@ -1068,10 +1072,13 @@ async function netConnect(){
   sock.on('connect', ()=>{
     netStatus('сеть: онлайн'); netMsg('');
     const tk=netTokenGet();
-    if(tk) sock.emit('auth:token',{token:tk},r=>{ // ре-авторизация при каждом connect (после рестарта сервера сокет без токена — join падал «Нужно войти в профиль»)
-      if(r&&r.ok) netAuthed(r.profile);
-      else { netTokenClear(); if(NET.authed){ NET.authed=false; NET.profile=null; netShowAuth(true); netStatus('сессия истекла — войдите заново'); } }
-    });
+    if(tk){ // проверка сохранённой сессии: прячем форму логина на время проверки,
+      netShowAuth(false); netStatus('вход по сохранённой сессии…'); // иначе кажется, что прогресс слетел и надо входить заново
+      sock.emit('auth:token',{token:tk},r=>{ // ре-авторизация при каждом connect (после рестарта сервера сокет без токена — join падал «Нужно войти в профиль»)
+        if(r&&r.ok) netAuthed(r.profile);
+        else { netTokenClear(); NET.authed=false; NET.profile=null; netShowAuth(true); netStatus('сессия истекла — войдите заново'); } // форму возвращаем ВСЕГДА: раньше на свежей загрузке она оставалась скрытой
+      });
+    }
   });
   sock.on('disconnect', ()=>{ netStatus('связь потеряна'); if(NET.inRoom) netLeaveLocal(true); });
   sock.on('connect_error', ()=>{ netStatus('нет связи с сервером'); });
@@ -2958,7 +2965,7 @@ function renderHangar(){
   const id=btn.dataset.id, p=PLANES.find(x=>x.id===id);
   if(NET.authed){ // сетевой профиль: магазин через сервер (деньги/владение проверяет БД)
     NET.sock.emit('shop',{act:btn.dataset.act,id},r=>{
-      if(r&&r.ok){ NET.applyProfile(r.profile); toast(btn.dataset.act==='buy'?p.name+' — куплен и выбран!':p.name+' — выбран'); }
+      if(r&&r.ok){ NET.applyProfile(r.profile); toast(btn.dataset.act==='buy'?p.name+' — куплен и выбран!':p.name+' — выбран'); } // applyProfile перерисует открытый ангар — раньше кнопка «КУПИТЬ» висела после покупки
       else toast((r&&r.err)||'Отказ');
     });
     return;
@@ -2972,15 +2979,21 @@ function renderHangar(){
     renderHangar();
   }
 });
+let upgPending=false; // ждать ответ сервера: при пинге повторные клики покупали СЛЕДУЮЩИЙ уровень и сжигали опыт
 $('upg-box').addEventListener('click', e=>{
   const btn=e.target.closest('button[data-act="upg"]'); if(!btn) return;
   const br=btn.dataset.br, u=PROG.upg[PROG.sel], lvl=u[br];
   if(lvl>=5||PROG.xp<UPG_COST[lvl]) return;
   if(NET.authed){ // улучшения сетевого профиля — через сервер
+    if(upgPending) return; // второй клик до ответа = вторая покупка — блокируем
+    upgPending=true; btn.disabled=true; btn.textContent='…'; // мгновенная обратная связь даже при высоком пинге
     NET.sock.emit('shop',{act:'upg',br},r=>{
+      upgPending=false;
       if(r&&r.ok){ NET.applyProfile(r.profile); const lv=r.profile.upg[PROG.sel]; toast(UPG_BRANCHES.find(b=>b.id===br).name+': уровень '+(lv?lv[br]:0)); }
       else toast((r&&r.err)||'Отказ');
+      renderHangar(); // обновить пипсы/стоимость/баланс опыта и вернуть кнопку — без этого улучшение выглядело «не сработавшим»
     });
+    setTimeout(()=>{ if(upgPending){ upgPending=false; renderHangar(); } },4000); // страховка: ответ потерялся при обрыве связи
     return;
   }
   PROG.xp-=UPG_COST[lvl]; u[br]=lvl+1; saveProg();
